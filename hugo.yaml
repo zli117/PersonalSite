@@ -35,3 +35,7 @@ outputs:
   home:
     - 'HTML'
     - 'RSS'
+  
+caches:
+  images:
+    dir: :cacheDir/images
