@@ -43,3 +43,59 @@
 .chapter-nav-spacer {
     flex: 1 1 0;
 }
+
+.post-tree-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0.5rem 0 0 0;
+}
+
+.post-tree-list li {
+    padding: 0.25rem 0;
+}
+
+.post-tree-list li a {
+    text-decoration: none;
+}
+
+.post-tree-list li a:hover {
+    text-decoration: underline;
+}
+
+.section-banner {
+    margin: 0 0 1.5rem 0;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid var(--primary);
+    background: var(--tertiary);
+    border-radius: 0 6px 6px 0;
+}
+
+.section-banner-label {
+    font-size: 0.75em;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.section-banner-title {
+    font-weight: 600;
+    margin-top: 0.1rem;
+}
+
+.section-banner-title a {
+    text-decoration: none;
+}
+
+.section-banner-title a:hover {
+    text-decoration: underline;
+}
+
+.section-banner-blurb {
+    margin-top: 0.4rem;
+    font-size: 0.92em;
+    opacity: 0.85;
+}
+
+.section-banner-blurb p {
+    margin: 0;
+}

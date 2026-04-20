@@ -11,8 +11,12 @@
   {{- with $s.Params.summary }}
   <p class="post-description" style="margin-top:-0.25rem;">{{ . | markdownify }}</p>
   {{- end }}
-  {{- range $s.RegularPages }}
-  {{- partial "post-card.html" . }}
+  {{- with $s.RegularPages }}
+  <ul class="post-tree-list">
+    {{- range . }}
+    <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+    {{- end }}
+  </ul>
   {{- end }}
   {{- range $s.Sections.ByWeight }}
   {{- partial "posts-tree.html" (dict "section" . "depth" (add $d 1)) }}

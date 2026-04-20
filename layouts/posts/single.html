@@ -1,6 +1,25 @@
 {{- define "main" }}
 
 <article class="post-single">
+
+  {{- /* Section banner: if the current section's _index.md has a summary
+         (or body content), show it at the top of every leaf page in the
+         section, linking back to the section landing page. */ -}}
+  {{- with .CurrentSection -}}
+  {{- $blurb := .Params.summary | default .Description -}}
+  {{- if or $blurb .Content -}}
+  <aside class="section-banner">
+    <div class="section-banner-label">Part of</div>
+    <div class="section-banner-title">
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+    </div>
+    {{- with $blurb }}
+    <div class="section-banner-blurb">{{ . | markdownify }}</div>
+    {{- end }}
+  </aside>
+  {{- end -}}
+  {{- end }}
+
   <header class="post-header">
     {{ partial "breadcrumbs.html" . }}
     <h1 class="post-title entry-hint-parent">

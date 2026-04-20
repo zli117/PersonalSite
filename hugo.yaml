@@ -6,6 +6,23 @@ theme: 'PaperMod'
 params:
   author: "Zonglin Li"
 
+  # Enables the comments partial on all single (leaf) pages.
+  comments: true
+
+  # Configure at https://giscus.app (requires GitHub Discussions enabled on the repo).
+  # Fill in the four IDs, then rebuild. Until these are set, the comments
+  # partial renders nothing (so enabling `comments: true` above is safe).
+  giscus:
+    repo: "zli117/PersonalSite"
+    repoId: "R_kgDORL6oVQ"
+    category: "Comments"
+    categoryId: "DIC_kwDORL6oVc4C7SYm"
+    mapping: "pathname"
+    reactionsEnabled: "1"
+    inputPosition: "bottom"
+    theme: "preferred_color_scheme"
+    lang: "en"
+
   profileMode:
     enabled: true
     title: "Works in Progress"
