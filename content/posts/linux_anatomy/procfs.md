@@ -1,10 +1,9 @@
 ---
 date: '2026-04-19T22:20:20-07:00'
 draft: true
-title: 'Procfs'
+title: 'Chapter 3: procfs'
+weight: 30
 ---
-# procfs: a practical guide
-
 ## What procfs is and why it exists
 
 Early Unix had a problem: how does userspace inspect what the kernel is doing? The kernel tracks processes, memory, open files, network connections, load averages, interrupt counters, thousands of things. Userspace tools — `ps`, `top`, `free`, `netstat`, `uptime` — need to see this. Options available in the 1970s/80s:

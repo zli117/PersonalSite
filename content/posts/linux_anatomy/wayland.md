@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T20:59:18-07:00'
 draft: true
-title: 'Wayland'
+title: 'Chapter 14: Wayland'
+weight: 140
 ---
 ## What Wayland is and why it exists
 

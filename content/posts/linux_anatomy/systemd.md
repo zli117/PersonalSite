@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T20:58:50-07:00'
 draft: true
-title: 'Systemd'
+title: 'Chapter 7: systemd'
+weight: 70
 ---
 ## What systemd is and why it exists
 

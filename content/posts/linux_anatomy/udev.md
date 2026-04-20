@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T20:59:03-07:00'
 draft: true
-title: 'Udev'
+title: 'Chapter 4: udev'
+weight: 40
 ---
 ## What udev is and why it exists
 

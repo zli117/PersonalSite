@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T20:55:22-07:00'
 draft: true
-title: 'DBus'
+title: 'Chapter 8: D-Bus'
+weight: 80
 ---
 ## What D-Bus is and why it exists
 

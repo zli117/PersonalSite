@@ -2,7 +2,7 @@
 date: '2026-04-19T20:58:33-07:00'
 draft: true
 title: 'Chapter 2: sysfs'
-weight: 2
+weight: 20
 ---
 ## What sysfs is and why it exists
 

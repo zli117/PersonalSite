@@ -1,8 +1,8 @@
 ---
 date: '2026-04-19T20:47:34-07:00'
 draft: true
-title: 'Chapter 0: A map of desktop Linux'
-weight: 0
+title: 'Chapter 0: An Introduction'
+weight: 1
 ---
 A modern Linux desktop is a working compromise between forty years of Unix tradition, thirty years of X11, twenty years of D-Bus-era coordination, and a decade or so of Wayland's attempt to start fresh. When you press the power button on your laptop and a graphical login screen appears fifteen seconds later, a cast of several dozen independent projects — kernel drivers going back to the 90s, protocols redesigned in 2008, config models introduced in 2011, a display server first sketched in 2012, a session tracker ratified in 2015 — briefly cohere into something that looks, to a user, like one operating system.
 
@@ -75,37 +75,37 @@ The kernel exposes itself to userspace through a handful of distinct interfaces.
 
 How hardware shows up and who manages it:
 
-4. **udev** — the userspace device manager. Naming, permissions, event dispatch.
-5. **DRM/KMS** — the kernel's graphics subsystem. How GPU access and display configuration are arbitrated, how frames actually get to the screen.
-6. **libinput** — the userspace input library. How keyboards, mice, touchpads, touchscreens, and tablets produce meaningful events consistently across every modern desktop.
+4. **[udev](./udev.md)** — the userspace device manager. Naming, permissions, event dispatch.
+5. **[DRM/KMS](./drm_kms.md)** — the kernel's graphics subsystem. How GPU access and display configuration are arbitrated, how frames actually get to the screen.
+6. **[libinput](./libinput.md)** — the userspace input library. How keyboards, mice, touchpads, touchscreens, and tablets produce meaningful events consistently across every modern desktop.
 
 ### Coordination
 
 How userspace services coordinate:
 
-7. **systemd** — PID 1 and the service manager. Units, dependencies, targets, cgroup integration.
-8. **D-Bus** — the RPC bus for local service-to-service and service-to-app communication.
+7. **[systemd](./systemd.md)** — PID 1 and the service manager. Units, dependencies, targets, cgroup integration.
+8. **[D-Bus](./d_bus.md)** — the RPC bus for local service-to-service and service-to-app communication.
 
 ### Identity, authentication, authorization
 
 Who you are, how you prove it, what you're allowed to do:
 
-9. **PAM** — the pluggable authentication framework. How login, sudo, ssh, GDM all share auth logic.
-10. **logind** — session, seat, and user tracking. The glue between login and hardware access.
-11. **polkit** — runtime authorization. How unprivileged desktop apps get to do privileged things without going through `sudo`.
+9. **[PAM](./pam.md)** — the pluggable authentication framework. How login, sudo, ssh, GDM all share auth logic.
+10. **[logind](./logind.md)** — session, seat, and user tracking. The glue between login and hardware access.
+11. **[polkit](./polkit.md)** — runtime authorization. How unprivileged desktop apps get to do privileged things without going through `sudo`.
 
 ### The network
 
-12. **NetworkManager** — connection management, WiFi, DHCP, DNS integration, firewall zones. Interleaves with firewalld and systemd-resolved.
+12. **[NetworkManager](./network_manager.md)** — connection management, WiFi, DHCP, DNS integration, firewall zones. Interleaves with firewalld and systemd-resolved.
 
 ### The graphical stack
 
-13. **GUI overview** — the whole graphical layer from kernel to toolkit: DRM/KMS for display, libinput for input, Wayland vs X11, compositors, toolkits, desktop environments. A map of where everything sits.
-14. **Wayland protocol** — the actual protocol between apps and the compositor. How windows get drawn, how input gets delivered, how the security model differs from X11.
+13. **[GUI overview](./gui_overview.md)** — the whole graphical layer from kernel to toolkit: DRM/KMS for display, libinput for input, Wayland vs X11, compositors, toolkits, desktop environments. A map of where everything sits.
+14. **[Wayland protocol](./wayland.md)** — the actual protocol between apps and the compositor. How windows get drawn, how input gets delivered, how the security model differs from X11.
 
 ### Capstone
 
-15. **Power button to desktop** — a complete trace of a real boot-to-login-to-desktop, naming every layer, showing how they compose. The victory lap.
+15. **[Power button to desktop](./capstone.md)** — a complete trace of a real boot-to-login-to-desktop, naming every layer, showing how they compose. The victory lap.
 
 The order is a suggested reading path, not a prerequisite chain. If you already know a topic, skip it. If you want to dip in on something specific, each piece is readable in isolation — they cross-reference but don't strictly depend on each other.
 

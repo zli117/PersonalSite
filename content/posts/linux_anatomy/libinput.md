@@ -1,10 +1,9 @@
 ---
 date: '2026-04-19T23:01:21-07:00'
 draft: true
-title: 'Libinput'
+title: 'Chapter 6: libinput'
+weight: 60
 ---
-# libinput: a practical guide
-
 ## What libinput is and why it exists
 
 Getting input from a keyboard or mouse on Linux sounds like it should be easy. The kernel provides `/dev/input/event*` character devices; you open one, read structured events (`struct input_event` — a type, code, value, timestamp), and you're done. For a dumb keyboard, it basically is that easy.

@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T21:16:07-07:00'
 draft: true
-title: 'Logind'
+title: 'Chapter 10: logind'
+weight: 100
 ---
 ## What logind is and why it exists
 

@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T20:55:51-07:00'
 draft: true
-title: 'DRM/KMS'
+title: 'Chapter 5: DRM/KMS'
+weight: 50
 ---
 ## What DRM/KMS is and why it exists
 

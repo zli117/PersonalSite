@@ -1,10 +1,9 @@
 ---
 date: '2026-04-19T22:11:48-07:00'
 draft: true
-title: 'Pam'
+title: 'Chapter 9: PAM'
+weight: 90
 ---
-# PAM: a practical guide
-
 ## What PAM is and why it exists
 
 In early Unix, authentication was hardcoded. The `login` program read `/etc/passwd`, compared a crypted password, let you in or didn't. `su` did the same check. `ftpd` had its own copy of the check. Every program that needed to authenticate users re-implemented the same logic against the same files.

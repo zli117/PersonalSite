@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T22:03:50-07:00'
 draft: true
-title: 'NetworkManager: a practical guide'
+title: 'Chapter 12: NetworkManager'
+weight: 120
 ---
 ## What NetworkManager is and why it exists
 

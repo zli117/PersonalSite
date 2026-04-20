@@ -1,10 +1,9 @@
 ---
 date: '2026-04-19T22:53:27-07:00'
 draft: true
-title: 'Capstone'
+title: 'Chapter 15: Power button to desktop'
+weight: 150
 ---
-# Capstone: from power button to desktop
-
 We've walked through the layers of desktop Linux one at a time — kernel interfaces, udev, systemd, D-Bus, NetworkManager, PAM, logind, polkit, DRM/KMS, Wayland. Each in isolation makes sense. The harder question is what happens when they all run at once: how do they *compose*?
 
 This capstone traces a single real journey: **you press the power button on your laptop. Moments later, you're looking at the GNOME desktop, and your WiFi is connected.** Every layer of the series appears, in sequence, doing its actual job.

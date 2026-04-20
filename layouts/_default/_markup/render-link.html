@@ -12,7 +12,7 @@
   {{- with .Page.GetPage $url -}}
     {{- $dest = printf "%s%s" .RelPermalink $anchor -}}
   {{- else -}}
-    {{- errorf "render-link: page %q not found (from %s)" $url $.Page.File.Filename -}}
+    {{- warnf "render-link: page %q not found (from %s) — leaving link as-is" $url $.Page.File.Filename -}}
   {{- end -}}
 {{- end -}}
 <a href="{{ $dest | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}{{ if strings.HasPrefix $dest "http" }} target="_blank" rel="noopener"{{ end }}>{{ .Text | safeHTML }}</a>

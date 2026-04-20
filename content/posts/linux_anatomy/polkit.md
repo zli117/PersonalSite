@@ -1,7 +1,8 @@
 ---
 date: '2026-04-19T22:05:08-07:00'
 draft: true
-title: 'Polkit'
+title: 'Chapter 11: polkit'
+weight: 110
 ---
 ## What polkit is and why it exists
 
