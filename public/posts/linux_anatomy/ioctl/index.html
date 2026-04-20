@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Ioctl | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="What ioctl is and why it exists
+Unix&rsquo;s core abstraction is the file descriptor: open, read, write, close. Beautifully simple, and wonderfully general when what you&rsquo;re doing is moving bytes around. But devices aren&rsquo;t just byte streams. A serial port has a baud rate. A disk has a geometry. A network interface has an MTU and a MAC address. A tape drive rewinds. A terminal has a window size. None of these fit read()/write().">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/ioctl/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/ioctl/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Ioctl
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 20:57:31 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/systemd/">
+    <small>← Previous</small>
+    <span>Systemd</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/drm_kms/">
+    <small>Next →</small>
+    <span>DRM/KMS</span>
+  </a></nav>
+  <div class="post-content"><h2 id="what-ioctl-is-and-why-it-exists">What ioctl is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-ioctl-is-and-why-it-exists">#</a></h2>
+<p>Unix&rsquo;s core abstraction is the file descriptor: <code>open</code>, <code>read</code>, <code>write</code>, <code>close</code>. Beautifully simple, and wonderfully general when what you&rsquo;re doing is moving bytes around. But devices aren&rsquo;t just byte streams. A serial port has a baud rate. A disk has a geometry. A network interface has an MTU and a MAC address. A tape drive rewinds. A terminal has a window size. None of these fit <code>read()</code>/<code>write()</code>.</p>
+<p>Early Unix needed an escape hatch. In 1979, V7 introduced <strong><code>ioctl(fd, request, argp)</code></strong> — &ldquo;I/O control&rdquo; — a syscall that says: &ldquo;take this open file descriptor, perform this driver-specific operation identified by <code>request</code>, using this argument.&rdquo; A device driver exposes a bundle of operations through a single syscall, keyed by an opcode. Each driver defines its own opcodes and argument structures.</p>
+<p>This works. It also means <code>ioctl</code> is the most chaotic syscall in Unix. There are thousands of distinct ioctls. Each one is effectively a bespoke function call into a specific driver. The type signature is a lie — the &ldquo;third argument&rdquo; is different for every request, and you&rsquo;re trusted to pass the right thing.</p>
+<p><strong>Modern Linux&rsquo;s position on ioctl:</strong> necessary evil, generally avoided for new designs. New kernel-userspace interfaces prefer netlink (structured, versioned, extensible), sysfs (declarative attributes), BPF (programmable), or filesystems like configfs (state as directories). But mountains of legacy and many niche interfaces remain ioctl-based, so you still need to understand it.</p>
+<h2 id="the-syscallssyscall-signature">The [[Syscalls|syscall]] signature<a hidden class="anchor" aria-hidden="true" href="#the-syscallssyscall-signature">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">ioctl</span>(<span style="color:#66d9ef">int</span> fd, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> request, ...);
+</span></span></code></pre></div><ul>
+<li><strong><code>fd</code></strong> — an open file descriptor. The driver behind the fd is what handles the ioctl.</li>
+<li><strong><code>request</code></strong> — an opcode. Traditionally an integer, usually encoded to include direction (read/write/none), size of argument, a &ldquo;type&rdquo; byte identifying the subsystem, and a command number.</li>
+<li><strong><code>argp</code></strong> — optional, typed-differently-per-request pointer (or sometimes an integer cast to a pointer, or nothing at all).</li>
+</ul>
+<p>Return value: usually 0 on success, -1 on error with <code>errno</code> set. Some ioctls return meaningful positive values (e.g., <code>FIONREAD</code> returns bytes available). You have to know which.</p>
+<p>The critical insight: <strong>the file descriptor determines which driver receives the ioctl.</strong> <code>ioctl(fd_for_a_socket, ...)</code> goes to the socket layer. <code>ioctl(fd_for_/dev/video0, ...)</code> goes to the V4L2 driver. <code>ioctl(fd_for_/dev/sda, ...)</code> goes to the block layer. Same syscall, completely different universe based on what <code>fd</code> points to.</p>
+<h2 id="the-request-encoding-_io-macros">The request encoding (_IO macros)<a hidden class="anchor" aria-hidden="true" href="#the-request-encoding-_io-macros">#</a></h2>
+<p>Requests aren&rsquo;t arbitrary integers. They&rsquo;re constructed with a set of macros that pack metadata into the number:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#define _IO(type, nr)         </span><span style="color:#75715e">/* no data */</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define _IOR(type, nr, size)  </span><span style="color:#75715e">/* driver writes to userspace: read from driver&#39;s POV */</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define _IOW(type, nr, size)  </span><span style="color:#75715e">/* driver reads from userspace: write to driver&#39;s POV */</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define _IOWR(type, nr, size) </span><span style="color:#75715e">/* both directions */</span><span style="color:#75715e">
+</span></span></span></code></pre></div><p>A typical definition:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#define VIDIOC_QUERYCAP  _IOR(&#39;V&#39;,  0, struct v4l2_capability)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define TUNSETIFF        _IOW(&#39;T&#39;, 202, int)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define BLKGETSIZE64     _IOR(0x12, 114, size_t)
+</span></span></span></code></pre></div><ul>
+<li><strong>Direction bits</strong> — <code>_IOR</code>, <code>_IOW</code>, <code>_IOWR</code>, <code>_IO</code>. Critical: the &ldquo;R/W&rdquo; is from <strong>userspace&rsquo;s</strong> perspective. <code>_IOR</code> means &ldquo;userspace reads data back&rdquo; (driver fills a buffer). <code>_IOW</code> means &ldquo;userspace writes data&rdquo; (driver consumes it).</li>
+<li><strong>Type (magic number)</strong> — a byte that identifies the subsystem. <code>'V'</code> = V4L2, <code>'T'</code> = TUN/TAP, <code>0x12</code> = block devices. There&rsquo;s a list in <code>Documentation/userspace-api/ioctl/ioctl-number.rst</code> in the kernel tree.</li>
+<li><strong>Command number</strong> — sequential within the type.</li>
+<li><strong>Size</strong> — derived from the type of the argument struct; the kernel can sanity-check.</li>
+</ul>
+<p>You rarely build these yourself. You <code>#include &lt;linux/something.h&gt;</code> and use the provided names. The packing helps the kernel catch bugs: if userspace passes a struct that&rsquo;s the wrong size for the request, the kernel can notice.</p>
+<h2 id="a-worked-example-getting-the-terminal-window-size">A worked example: getting the terminal window size<a hidden class="anchor" aria-hidden="true" href="#a-worked-example-getting-the-terminal-window-size">#</a></h2>
+<p>Every terminal you&rsquo;ve used in a shell knows its size (<code>$COLUMNS</code>, <code>$LINES</code>). How? <code>ioctl(TIOCGWINSZ)</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/ioctl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;unistd.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> winsize ws;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">ioctl</span>(STDOUT_FILENO, TIOCGWINSZ, <span style="color:#f92672">&amp;</span>ws) <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;ioctl TIOCGWINSZ&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;rows=%u cols=%u</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ws.ws_row, ws.ws_col);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Compile and run:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>cc -o winsz winsz.c
+</span></span><span style="display:flex;"><span>./winsz
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># rows=48 cols=180</span>
+</span></span></code></pre></div><p>Breaking it down:</p>
+<ul>
+<li><code>STDOUT_FILENO</code> is fd 1 — points to the terminal (when not redirected).</li>
+<li><code>TIOCGWINSZ</code> is &ldquo;Terminal I/O Control, Get Window Size&rdquo; — defined in <code>&lt;sys/ioctl.h&gt;</code>.</li>
+<li><code>&amp;ws</code> is a pointer to a <code>struct winsize</code> the kernel will fill in.</li>
+</ul>
+<p><code>stty size</code>, <code>tput cols</code>, <code>resize</code>, every full-screen TUI program — all calling <code>ioctl(TIOCGWINSZ)</code>. Your shell registers a signal handler for <code>SIGWINCH</code>, receives the signal on resize, re-runs the ioctl, updates the environment.</p>
+<h2 id="the-major-families">The major families<a hidden class="anchor" aria-hidden="true" href="#the-major-families">#</a></h2>
+<p>Most ioctls you&rsquo;ll encounter fall into these subsystems:</p>
+<p><strong>Terminal control (<code>&lt;sys/ioctl.h&gt;</code>, <code>&lt;termios.h&gt;</code>)</strong> — <code>TIOCGWINSZ</code>, <code>TIOCSWINSZ</code>, <code>TIOCGPGRP</code>, <code>TIOCSCTTY</code>. Though for terminal attribute changes (baud rate, cooked mode, echo), the <code>tcgetattr</code>/<code>tcsetattr</code> wrappers are preferred over direct ioctls.</p>
+<p><strong>Socket / networking (<code>&lt;sys/socket.h&gt;</code>, <code>&lt;net/if.h&gt;</code>)</strong> — <code>SIOCGIFADDR</code>, <code>SIOCGIFMTU</code>, <code>SIOCGIFFLAGS</code> and a long tail of others. Historically the only way to configure network interfaces. Now largely superseded by netlink; <code>ip</code> uses netlink, <code>ifconfig</code> uses ioctls, which is one reason <code>ifconfig</code> is deprecated.</p>
+<p><strong>Block devices (<code>&lt;linux/fs.h&gt;</code>, <code>&lt;sys/mount.h&gt;</code>)</strong> — <code>BLKGETSIZE64</code> (size of a block device), <code>BLKDISCARD</code> (TRIM), <code>BLKZEROOUT</code>, <code>FITRIM</code>, <code>FIFREEZE</code>/<code>FITHAW</code>. How <code>lsblk</code>, <code>fdisk</code>, and <code>blkdiscard</code> operate.</p>
+<p><strong>Filesystem-specific (<code>&lt;linux/fs.h&gt;</code>)</strong> — <code>FICLONE</code> (reflink copy on CoW filesystems), <code>FIDEDUPERANGE</code>, <code>FS_IOC_GETFLAGS</code> (chattr attributes), <code>FS_IOC_FIEMAP</code> (extent mapping). How <code>cp --reflink</code>, <code>chattr</code>, <code>filefrag</code> work.</p>
+<p><strong>V4L2 — video capture (<code>&lt;linux/videodev2.h&gt;</code>)</strong> — <code>VIDIOC_QUERYCAP</code>, <code>VIDIOC_ENUM_FMT</code>, <code>VIDIOC_S_FMT</code>, <code>VIDIOC_QBUF</code>, <code>VIDIOC_STREAMON</code>. The entire webcam/capture-card API is ioctls. Same with V4L2 radio, some broadcast/encoder hardware.</p>
+<p><strong>DRM / graphics (<code>&lt;drm/drm.h&gt;</code>, <code>&lt;xf86drm.h&gt;</code>)</strong> — every GPU operation: mode setting, buffer allocation, command submission. Userspace libraries like libdrm and Mesa wrap these; you virtually never call them directly. Wayland compositors and X servers are big ioctl clients.</p>
+<p><strong>TUN/TAP (<code>&lt;linux/if_tun.h&gt;</code>)</strong> — <code>TUNSETIFF</code>, <code>TUNSETPERSIST</code>. How VPNs get their virtual network interfaces.</p>
+<p><strong>Input (<code>&lt;linux/input.h&gt;</code>)</strong> — <code>EVIOCGNAME</code>, <code>EVIOCGBIT</code>, <code>EVIOCGRAB</code>. How <code>evtest</code>, libinput, and X/Wayland read keyboards and mice.</p>
+<p><strong>KVM (<code>&lt;linux/kvm.h&gt;</code>)</strong> — hypervisors create VMs, vCPUs, memory regions, and run guests via ioctls on <code>/dev/kvm</code>. QEMU, crosvm, Firecracker all use these.</p>
+<p><strong>Generic SCSI / NVMe passthrough (<code>&lt;scsi/sg.h&gt;</code>, <code>&lt;linux/nvme_ioctl.h&gt;</code>)</strong> — send raw commands to storage devices. How <code>smartctl</code>, <code>nvme-cli</code>, <code>sg3_utils</code> work.</p>
+<p>Each of these is essentially its own kernel-userspace protocol with ioctls as the transport.</p>
+<h2 id="inspecting-ioctls-a-program-uses">Inspecting ioctls a program uses<a hidden class="anchor" aria-hidden="true" href="#inspecting-ioctls-a-program-uses">#</a></h2>
+<p>When you&rsquo;re curious how a tool talks to the kernel, or debugging something that&rsquo;s not working, <code>strace -e ioctl</code> is your best friend:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>strace -e ioctl -o /tmp/trace.log stty size
+</span></span><span style="display:flex;"><span>tail /tmp/trace.log
+</span></span></code></pre></div><p>You&rsquo;ll see lines like:</p>
+<pre tabindex="0"><code>ioctl(0, TIOCGWINSZ, {ws_row=48, ws_col=180, ws_xpixel=0, ws_ypixel=0}) = 0
+</code></pre><p><code>strace</code> decodes well-known ioctls and prints the arguments structurally. For unknown ones, it prints the raw number:</p>
+<pre tabindex="0"><code>ioctl(3, _IOC(_IOC_READ, 0x12, 0x72, 0x8), [0x1fffffe00]) = 0
+</code></pre><p>That&rsquo;s <code>BLKGETSIZE64</code> on an fd for <code>/dev/sda</code>, returning 549755813376 bytes (the <code>0x1fffffe00</code> when multiplied by 512, roughly — actually the raw return).</p>
+<p>Decoding an unknown ioctl number by hand: take the number, extract direction/type/command/size with the reverse of the <code>_IO*</code> macros. Or grep the kernel headers for the specific constant:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>grep -r <span style="color:#e6db74">&#34;0x1272&#34;</span> /usr/include/linux/    <span style="color:#75715e"># poke around</span>
+</span></span></code></pre></div><p>For many devices, the number encodes enough that <code>_IOC_TYPE(req)</code> gives you the magic number (<code>'V'</code> → V4L2, etc.), and that narrows the search.</p>
+<h2 id="why-the-interface-is-so-awkward">Why the interface is so awkward<a hidden class="anchor" aria-hidden="true" href="#why-the-interface-is-so-awkward">#</a></h2>
+<p>A few rough edges you&rsquo;ll bump into:</p>
+<p><strong>1. The prototype lies.</strong> <code>ioctl(fd, request, ...)</code> in <code>&lt;sys/ioctl.h&gt;</code> is a variadic stub. The &ldquo;real&rdquo; signature depends on the request. Compilers can&rsquo;t type-check. You have to read docs and get the arg type right.</p>
+<p><strong>2. Endianness and alignment are yours.</strong> ioctls take raw structs by address. The kernel and userspace must agree on layout exactly — including padding, bitfield ordering, and integer widths. This is why the kernel defines structs with explicit widths (<code>__u32</code>, not <code>unsigned int</code>) in headers under <code>&lt;linux/...&gt;</code>.</p>
+<p><strong>3. 32-bit vs 64-bit is a minefield.</strong> A 32-bit binary on a 64-bit kernel sends ioctls that look different at the ABI level (struct sizes change). The kernel has &ldquo;compat&rdquo; wrappers for many common ioctls; obscure ones sometimes don&rsquo;t, and you get mysterious failures when running 32-bit tools.</p>
+<p><strong>4. Privilege is the driver&rsquo;s call.</strong> No uniform policy. Some ioctls require <code>CAP_NET_ADMIN</code>, some require <code>CAP_SYS_ADMIN</code>, some require ownership of the fd, some require nothing. You read man pages or source code.</p>
+<p><strong>5. ABI versioning is haphazard.</strong> Older ioctls had no versioning. Newer ones often include a &ldquo;size&rdquo; or &ldquo;version&rdquo; field in the struct. If a driver adds fields, old userspace sending old-size structs still works (hopefully), but new userspace on an old kernel gets <code>-ENOTTY</code> or <code>-EINVAL</code>.</p>
+<p><strong>6. No introspection.</strong> Unlike netlink (self-describing messages) or D-Bus (introspection API), ioctls are opaque. You cannot ask &ldquo;what ioctls does this fd support?&rdquo; — you have to know.</p>
+<p>These are exactly the reasons new subsystems don&rsquo;t use ioctl anymore.</p>
+<h2 id="writing-a-driver-ioctl-the-other-side">Writing a driver ioctl (the other side)<a hidden class="anchor" aria-hidden="true" href="#writing-a-driver-ioctl-the-other-side">#</a></h2>
+<p>Briefly, for perspective — this is what a driver author writes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">long</span> <span style="color:#a6e22e">mydev_ioctl</span>(<span style="color:#66d9ef">struct</span> file <span style="color:#f92672">*</span>filp, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> cmd, <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">long</span> arg) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">switch</span> (cmd) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> MYDEV_GET_COUNT: {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> count <span style="color:#f92672">=</span> <span style="color:#a6e22e">get_count</span>();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">copy_to_user</span>((<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)arg, <span style="color:#f92672">&amp;</span>count, <span style="color:#66d9ef">sizeof</span>(count)))
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EFAULT;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">case</span> MYDEV_SET_MODE: {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">struct</span> mydev_mode mode;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">copy_from_user</span>(<span style="color:#f92672">&amp;</span>mode, (<span style="color:#66d9ef">void</span> __user <span style="color:#f92672">*</span>)arg, <span style="color:#66d9ef">sizeof</span>(mode)))
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>EFAULT;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">set_mode</span>(<span style="color:#f92672">&amp;</span>mode);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">default</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>ENOTTY;   <span style="color:#75715e">// &#34;not a typewriter&#34; — classic Unix for &#34;unknown ioctl&#34;
+</span></span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Key points:</p>
+<ul>
+<li><code>copy_to_user</code> / <code>copy_from_user</code> — never dereference userspace pointers directly; these helpers handle faults and the user/kernel boundary.</li>
+<li><code>-ENOTTY</code> is the canonical &ldquo;I don&rsquo;t know this ioctl&rdquo; error.</li>
+<li>The driver registers this function as its <code>.unlocked_ioctl</code> file operation, and the kernel dispatches based on fd.</li>
+</ul>
+<h2 id="a-more-involved-example-creating-a-tun-device">A more involved example: creating a TUN device<a hidden class="anchor" aria-hidden="true" href="#a-more-involved-example-creating-a-tun-device">#</a></h2>
+<p>Here&rsquo;s a classic &ldquo;userspace grabs a virtual network interface&rdquo; — what WireGuard userspace tools, OpenVPN, etc. do.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;fcntl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/if.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/if_tun.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;string.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/ioctl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;unistd.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">void</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(<span style="color:#e6db74">&#34;/dev/net/tun&#34;</span>, O_RDWR);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (fd <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) { <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;open&#34;</span>); <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1</span>; }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> ifreq ifr <span style="color:#f92672">=</span> {<span style="color:#ae81ff">0</span>};
+</span></span><span style="display:flex;"><span>    ifr.ifr_flags <span style="color:#f92672">=</span> IFF_TUN <span style="color:#f92672">|</span> IFF_NO_PI;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">strncpy</span>(ifr.ifr_name, <span style="color:#e6db74">&#34;mytun0&#34;</span>, IFNAMSIZ);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">ioctl</span>(fd, TUNSETIFF, <span style="color:#f92672">&amp;</span>ifr) <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">perror</span>(<span style="color:#e6db74">&#34;ioctl TUNSETIFF&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;Created %s on fd %d. Sleeping. Configure with:</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ifr.ifr_name, fd);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;  sudo ip addr add 10.9.0.1/24 dev %s</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ifr.ifr_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;  sudo ip link set %s up</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, ifr.ifr_name);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">sleep</span>(<span style="color:#ae81ff">600</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Run this as root:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo ./tuntest &amp;
+</span></span><span style="display:flex;"><span>ip link show mytun0
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 42: mytun0: &lt;POINTOPOINT,MULTICAST,NOARP&gt; mtu 1500 qdisc noop state DOWN ...</span>
+</span></span></code></pre></div><p>The single <code>ioctl(fd, TUNSETIFF, &amp;ifr)</code> call asked the TUN driver to create a new virtual interface named <code>mytun0</code> and associate it with <code>fd</code>. Reading from <code>fd</code> now gives you IP packets destined for that interface; writing pushes packets out. That&rsquo;s the entire API.</p>
+<h2 id="the-direct-mode-alternative-block-devices">The direct-mode alternative: block devices<a hidden class="anchor" aria-hidden="true" href="#the-direct-mode-alternative-block-devices">#</a></h2>
+<p>Sometimes ioctl is the <em>only</em> way to do something. Getting the size of a block device:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;fcntl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;linux/fs.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdint.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stdio.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;sys/ioctl.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;unistd.h&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>(<span style="color:#66d9ef">int</span> argc, <span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>argv) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> <span style="color:#a6e22e">open</span>(argv[<span style="color:#ae81ff">1</span>], O_RDONLY);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">uint64_t</span> sz;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ioctl</span>(fd, BLKGETSIZE64, <span style="color:#f92672">&amp;</span>sz);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">printf</span>(<span style="color:#e6db74">&#34;%s: %lu bytes</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>, argv[<span style="color:#ae81ff">1</span>], sz);
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">close</span>(fd);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo ./blksize /dev/nvme0n1
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># /dev/nvme0n1: 2048408248320 bytes</span>
+</span></span></code></pre></div><p><code>stat()</code> on a block device only gives you a minor number and metadata — it doesn&rsquo;t know the device size. The size lives in the block layer, accessed via ioctl.</p>
+<h2 id="nvme-passthrough--a-modern-structured-example">NVMe passthrough — a modern, structured example<a hidden class="anchor" aria-hidden="true" href="#nvme-passthrough--a-modern-structured-example">#</a></h2>
+<p>Newer kernels use ioctl less for device control and more for <strong>passthrough</strong> — letting userspace send raw protocol commands:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> nvme_passthru_cmd cmd <span style="color:#f92672">=</span> {
+</span></span><span style="display:flex;"><span>    .opcode       <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x06</span>,  <span style="color:#75715e">// Identify
+</span></span></span><span style="display:flex;"><span>    .nsid         <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>,
+</span></span><span style="display:flex;"><span>    .addr         <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint64_t</span>)(<span style="color:#66d9ef">uintptr_t</span>)buffer,
+</span></span><span style="display:flex;"><span>    .data_len     <span style="color:#f92672">=</span> <span style="color:#ae81ff">4096</span>,
+</span></span><span style="display:flex;"><span>    .cdw10        <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>,     <span style="color:#75715e">// Identify Controller
+</span></span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ioctl</span>(nvme_fd, NVME_IOCTL_ADMIN_CMD, <span style="color:#f92672">&amp;</span>cmd);
+</span></span></code></pre></div><p><code>nvme-cli</code> does exactly this to query SMART data, firmware versions, etc. The ioctl is thin — it&rsquo;s really a shim to let userspace construct NVMe commands without reimplementing the driver. Similar patterns for SCSI (<code>SG_IO</code>), for ATA (<code>HDIO_DRIVE_CMD</code>), for DVD drives (MMC commands).</p>
+<h2 id="when-new-kernel-interfaces-do-use-ioctl">When new kernel interfaces <em>do</em> use ioctl<a hidden class="anchor" aria-hidden="true" href="#when-new-kernel-interfaces-do-use-ioctl">#</a></h2>
+<p>Even in 2026, ioctl isn&rsquo;t dead — just avoided for new &ldquo;broad&rdquo; APIs. Where it still shows up:</p>
+<ul>
+<li><strong>High-bandwidth paths</strong> where the overhead of message marshaling matters (KVM hypercalls, io_uring&rsquo;s setup calls, DRM command submission).</li>
+<li><strong>Hardware-specific passthrough</strong> where the argument is literally a hardware command (NVMe, SCSI).</li>
+<li><strong>Existing subsystems</strong> extending their ioctl vocabulary because adding one more opcode is easier than migrating to netlink.</li>
+</ul>
+<p>For new general-purpose config interfaces (&ldquo;describe/set the state of this thing&rdquo;), developers reach for netlink, sysfs, configfs, or BPF. For low-level per-request operations on an fd, ioctl is still the natural fit.</p>
+<h2 id="debugging-ioctl-problems">Debugging ioctl problems<a hidden class="anchor" aria-hidden="true" href="#debugging-ioctl-problems">#</a></h2>
+<p>When an ioctl returns <code>-1</code>:</p>
+<p><strong><code>strace</code></strong> first:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>strace -e ioctl -f &lt;command&gt;
+</span></span></code></pre></div><p>Common errnos:</p>
+<ul>
+<li><strong><code>ENOTTY</code> (25)</strong> — driver doesn&rsquo;t recognize this request. Either wrong fd type (you ioctl&rsquo;d a socket with a tty ioctl), or kernel too old, or driver doesn&rsquo;t implement it.</li>
+<li><strong><code>EINVAL</code> (22)</strong> — request is recognized but argument is wrong (bad flags, wrong size, invalid values).</li>
+<li><strong><code>EFAULT</code> (14)</strong> — argument pointer is bad (NULL, unmapped, wrong length). Classic &ldquo;I passed the struct by value instead of by pointer.&rdquo;</li>
+<li><strong><code>EPERM</code> / <code>EACCES</code></strong> — permission denied. Often need root or a specific capability.</li>
+<li><strong><code>ENODEV</code></strong> — device disappeared or is in wrong state.</li>
+</ul>
+<p><strong>Check the right header:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>grep -rn <span style="color:#e6db74">&#34;VIDIOC_QUERYCAP&#34;</span> /usr/include/linux/
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># /usr/include/linux/videodev2.h:2483:#define VIDIOC_QUERYCAP _IOR(&#39;V&#39;,  0, struct v4l2_capability)</span>
+</span></span></code></pre></div><p>The header is the source of truth for the struct and encoding.</p>
+<p><strong>Read the kernel source.</strong> <code>Documentation/userspace-api/ioctl/</code> in the kernel tree is the most authoritative list. Per-subsystem documentation (e.g., <code>Documentation/admin-guide/media/</code>) often has detailed ioctl writeups.</p>
+<h2 id="things-that-trip-people-up">Things that trip people up<a hidden class="anchor" aria-hidden="true" href="#things-that-trip-people-up">#</a></h2>
+<p><strong>Wrong fd type.</strong> You opened <code>/dev/video0</code> and sent it a block-device ioctl. <code>ENOTTY</code>. The ioctl opcode encodes its expected &ldquo;type&rdquo; byte, and drivers filter on it, but not rigorously — usually it just doesn&rsquo;t match any case in the driver&rsquo;s switch.</p>
+<p><strong>Struct mismatch between libc and kernel.</strong> If you use headers from an older system or mismatch <code>&lt;linux/if.h&gt;</code> vs <code>&lt;net/if.h&gt;</code>, struct sizes differ and you get <code>EINVAL</code> or corruption. Stick with one consistent set (kernel headers <code>&lt;linux/*&gt;</code> for kernel-defined structs; glibc headers for POSIX stuff).</p>
+<p><strong>Mixing up direction.</strong> <code>_IOR</code> vs <code>_IOW</code>. Driver doc says &ldquo;this ioctl returns capabilities&rdquo; so you think <code>_IOW</code>, but it&rsquo;s <code>_IOR</code> (userspace reads back). The macro convention is confusing.</p>
+<p><strong>Threading and signals.</strong> Some ioctls block. They&rsquo;re interruptible by signals (returning <code>EINTR</code>). Long-running ioctls (like V4L2&rsquo;s <code>VIDIOC_DQBUF</code> waiting for a frame) need careful signal handling.</p>
+<p><strong>Nonblocking isn&rsquo;t universal.</strong> <code>O_NONBLOCK</code> on the fd affects <code>read</code>/<code>write</code>, but many ioctls are always blocking or always non-blocking regardless of the fd flag. Read per-ioctl docs.</p>
+<p><strong>Compat layer surprises.</strong> Running 32-bit tools on 64-bit kernel: usually fine for common ioctls, occasionally broken for obscure ones with pointer-containing structs that need manual compat handling. &ldquo;It works on x86_64 native but fails on i386 chroot&rdquo; is a classic signature.</p>
+<h2 id="how-it-fits-with-everything-else">How it fits with everything else<a hidden class="anchor" aria-hidden="true" href="#how-it-fits-with-everything-else">#</a></h2>
+<p>Positioning ioctl against its neighbors:</p>
+<ul>
+<li>
+<p><strong>vs read/write/mmap</strong> — read/write are for streaming bytes. ioctl is for out-of-band control. Most drivers implement both: read/write for the data path, ioctl for the control path. mmap is for exposing device memory or kernel buffers directly to userspace, often negotiated via ioctl first.</p>
+</li>
+<li>
+<p><strong>vs sysfs</strong> — sysfs is declarative (one value per file, steady-state config). ioctl is imperative (perform this operation now, possibly with complex side effects). You&rsquo;d use sysfs to set a persistent attribute, ioctl for &ldquo;eject the disc&rdquo; or &ldquo;start DMA.&rdquo;</p>
+</li>
+<li>
+<p><strong>vs netlink</strong> — netlink is structured, extensible, async, and has broadcast. It&rsquo;s the modern pick for configuration APIs. ioctl is synchronous, point-to-point, opaque. New networking features go to netlink; ioctl networking (SIOC*) is legacy.</p>
+</li>
+<li>
+<p><strong>vs D-Bus</strong> — D-Bus is <em>userspace-to-userspace</em> IPC at the daemon/app level. ioctl is userspace-to-kernel. Different planes. Nothing prevents a userspace daemon from wrapping an ioctl interface in a D-Bus service (and many do — NetworkManager wraps a pile of kernel ioctls+netlink behind a D-Bus API).</p>
+</li>
+<li>
+<p><strong>vs BPF</strong> — BPF lets you run custom code inside the kernel via a well-defined VM. ioctl is just a function call with an opcode. BPF replaces some ioctl-based filtering interfaces (seccomp, xdp, etc.) because &ldquo;load a program&rdquo; is far more expressive than &ldquo;pick one of these 80 preset operations.&rdquo;</p>
+</li>
+</ul>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Observe ioctls a program uses</span>
+</span></span><span style="display:flex;"><span>strace -e ioctl -f &lt;command&gt;
+</span></span><span style="display:flex;"><span>strace -e ioctl -o trace.log -s <span style="color:#ae81ff">4096</span> &lt;command&gt;    <span style="color:#75715e"># more detail, save to file</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Search for an ioctl definition</span>
+</span></span><span style="display:flex;"><span>grep -rn <span style="color:#e6db74">&#34;IOCTL_NAME&#34;</span> /usr/include/linux/
+</span></span><span style="display:flex;"><span>grep -rn <span style="color:#e6db74">&#34;IOCTL_NAME&#34;</span> /usr/include/
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Decode a raw number (in a program)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   _IOC_DIR(n)   -&gt; 0=NONE, 1=WRITE, 2=READ, 3=RW</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   _IOC_TYPE(n)  -&gt; magic byte (subsystem)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   _IOC_NR(n)    -&gt; command number</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   _IOC_SIZE(n)  -&gt; argument size</span>
+</span></span></code></pre></div><p>Common headers to know:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Header</th>
+          <th>Contents</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>&lt;sys/ioctl.h&gt;</code></td>
+          <td>The syscall and tty ioctls</td>
+      </tr>
+      <tr>
+          <td><code>&lt;termios.h&gt;</code></td>
+          <td>Terminal attributes (preferred over raw TC* ioctls)</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/fs.h&gt;</code></td>
+          <td>Filesystem/block ioctls (<code>BLK*</code>, <code>FIBMAP</code>, <code>FITRIM</code>, <code>FICLONE</code>)</td>
+      </tr>
+      <tr>
+          <td><code>&lt;net/if.h&gt;</code>, <code>&lt;sys/socket.h&gt;</code></td>
+          <td>Socket/interface ioctls (<code>SIOC*</code>)</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/if_tun.h&gt;</code></td>
+          <td>TUN/TAP</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/videodev2.h&gt;</code></td>
+          <td>V4L2</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/input.h&gt;</code></td>
+          <td>Input devices (EVIOC*)</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/kvm.h&gt;</code></td>
+          <td>KVM hypervisor</td>
+      </tr>
+      <tr>
+          <td><code>&lt;scsi/sg.h&gt;</code></td>
+          <td>SCSI generic passthrough</td>
+      </tr>
+      <tr>
+          <td><code>&lt;linux/nvme_ioctl.h&gt;</code></td>
+          <td>NVMe passthrough</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man 2 ioctl</code></strong> — short, and points at subsystem-specific man pages.</li>
+<li><strong><code>man 2 ioctl_list</code></strong> — a listing of common ioctls (incomplete but useful as a start).</li>
+<li><strong><code>Documentation/userspace-api/ioctl/</code></strong> in the Linux source — the most complete listing, organized by magic byte.</li>
+<li><strong>Subsystem docs</strong> — <code>Documentation/admin-guide/media/</code> for V4L2, <code>Documentation/block/</code> for block layer, etc. The per-subsystem docs are where real ioctl usage is explained.</li>
+<li><strong><code>&lt;linux/*.h&gt;</code> headers in <code>/usr/include/linux/</code></strong> — the actual definitions, usually with brief comments. Surprisingly readable.</li>
+<li><strong>strace source</strong> — has the decoders for hundreds of ioctls. Great reference for &ldquo;what does this opaque number mean&rdquo;.</li>
+</ul>
+<p>The mental model to take away: <strong>ioctl is a generic escape hatch that lets a file descriptor carry driver-specific operations, each identified by an opaque encoded integer and an argument whose type the caller must know out-of-band.</strong> It&rsquo;s the oldest and least-structured kernel-userspace interface, kept alive by legacy and by use cases where its directness pays off. Modern design prefers structured alternatives, but understanding ioctl is still essential because so much of Linux&rsquo;s hardware and filesystem surface area still lives behind it.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/systemd/">
+    <small>← Previous</small>
+    <span>Systemd</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/drm_kms/">
+    <small>Next →</small>
+    <span>DRM/KMS</span>
+  </a></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

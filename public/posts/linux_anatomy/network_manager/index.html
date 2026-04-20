@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>NetworkManager: a practical guide | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="What NetworkManager is and why it exists
+Classical Linux networking was built around /etc/network/interfaces (Debian) or /etc/sysconfig/network-scripts/ (Red Hat) — static config files read by init scripts at boot. Define your interfaces, bring them up, you&rsquo;re done. Perfect for servers that never move.
+Desktops and laptops broke this entirely. The assumptions that failed:
+
+The machine moves. Home WiFi, coffee shop, office ethernet, phone hotspot. Network changes constantly.
+Multiple interfaces, competing for primacy. Ethernet and WiFi connected; which is the default route? What happens when you unplug the cable?
+Authentication. WPA2, WPA3, 802.1X, captive portals, VPNs — each with its own daemon and state machine. Coordinating them was a nightmare of custom scripts.
+Services depend on the network. Syncing clients, mail fetchers, chat apps. They need to know &ldquo;network is up now&rdquo; / &ldquo;network is going down&rdquo; to behave correctly.
+Users aren&rsquo;t admins. Alice shouldn&rsquo;t need sudo to connect to her phone&rsquo;s hotspot or run a VPN. But network config is privileged.
+Hot-plug. Plug in a USB ethernet dongle → it should just work. Phone tethering over USB → same.
+
+NetworkManager (started ~2004 by Red Hat) is the daemon that consolidated all of this. It runs as a system service, owns network interfaces (usually), manages connection profiles, drives auxiliary daemons like wpa_supplicant, runs its own DHCP client, coordinates with systemd-resolved for DNS, talks to firewalld for zone assignment, and exposes everything on D-Bus so that CLIs (nmcli), GUIs (GNOME&rsquo;s network applet, KDE&rsquo;s plasma-nm), and scripts can drive it uniformly.">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/network_manager/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/network_manager/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      NetworkManager: a practical guide
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 22:03:50 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/polkit/">
+    <small>← Previous</small>
+    <span>Polkit</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/logind/">
+    <small>Next →</small>
+    <span>Logind</span>
+  </a></nav>
+  <div class="post-content"><h2 id="what-networkmanager-is-and-why-it-exists">What NetworkManager is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-networkmanager-is-and-why-it-exists">#</a></h2>
+<p>Classical Linux networking was built around <code>/etc/network/interfaces</code> (Debian) or <code>/etc/sysconfig/network-scripts/</code> (Red Hat) — static config files read by init scripts at boot. Define your interfaces, bring them up, you&rsquo;re done. Perfect for servers that never move.</p>
+<p>Desktops and laptops broke this entirely. The assumptions that failed:</p>
+<ul>
+<li><strong>The machine moves.</strong> Home WiFi, coffee shop, office ethernet, phone hotspot. Network changes constantly.</li>
+<li><strong>Multiple interfaces, competing for primacy.</strong> Ethernet <em>and</em> WiFi connected; which is the default route? What happens when you unplug the cable?</li>
+<li><strong>Authentication.</strong> WPA2, WPA3, 802.1X, captive portals, VPNs — each with its own daemon and state machine. Coordinating them was a nightmare of custom scripts.</li>
+<li><strong>Services depend on the network.</strong> Syncing clients, mail fetchers, chat apps. They need to know &ldquo;network is up now&rdquo; / &ldquo;network is going down&rdquo; to behave correctly.</li>
+<li><strong>Users aren&rsquo;t admins.</strong> Alice shouldn&rsquo;t need <code>sudo</code> to connect to her phone&rsquo;s hotspot or run a VPN. But network config is privileged.</li>
+<li><strong>Hot-plug.</strong> Plug in a USB ethernet dongle → it should just work. Phone tethering over USB → same.</li>
+</ul>
+<p><strong>NetworkManager</strong> (started ~2004 by Red Hat) is the daemon that consolidated all of this. It runs as a system service, owns network interfaces (usually), manages connection profiles, drives auxiliary daemons like wpa_supplicant, runs its own DHCP client, coordinates with systemd-resolved for DNS, talks to firewalld for zone assignment, and exposes everything on D-Bus so that CLIs (<code>nmcli</code>), GUIs (GNOME&rsquo;s network applet, KDE&rsquo;s plasma-nm), and scripts can drive it uniformly.</p>
+<p>Most desktop Linux distros ship NM enabled by default. Servers often use <code>systemd-networkd</code> instead (simpler, static-config-friendly, no D-Bus surface). Both solve the same problem from different ends: NM is dynamic and user-facing; networkd is declarative and server-facing. You&rsquo;ll mostly encounter NM because you mostly use laptops.</p>
+<h2 id="the-central-abstraction-device-vs-connection">The central abstraction: device vs. connection<a hidden class="anchor" aria-hidden="true" href="#the-central-abstraction-device-vs-connection">#</a></h2>
+<p>This is the single most important distinction in NetworkManager, and almost every piece of confusion traces back to not having it straight.</p>
+<ul>
+<li>
+<p><strong>Device</strong> — a network interface the kernel has. <code>wlp194s0</code>, <code>eno1</code>, <code>wg0</code>, a bridge, a bond. Hardware (or virtual), discovered from the kernel via netlink, lives as long as the kernel has it. NM either manages it or doesn&rsquo;t.</p>
+</li>
+<li>
+<p><strong>Connection</strong> — a saved configuration profile. &ldquo;My home WiFi, WPA3, these DNS servers, this firewall zone.&rdquo; Stored as keyfiles on disk. Can be activated on a compatible device. Many connections can target one device; only one is active at a time.</p>
+</li>
+</ul>
+<p>A connection is <em>not</em> an interface. A connection is a <em>config to apply</em> to an interface. When you &ldquo;connect to WiFi X&rdquo; in the GUI, what&rsquo;s happening is: NM finds the connection profile for X (or creates one), figures out which device can carry it (your WiFi card), and activates the profile <em>on</em> the device.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device status                  <span style="color:#75715e"># what interfaces exist, are they NM-managed, what state</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># DEVICE          TYPE      STATE        CONNECTION</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># wlp194s0        wifi      connected    HomeNet</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># eno1            ethernet  unavailable  --</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># wg0             wireguard connected    home-vpn</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># lo              loopback  unmanaged    --</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>nmcli connection show                <span style="color:#75715e"># what profiles are saved</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># NAME      UUID                                  TYPE      DEVICE</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># HomeNet   5f...                                 wifi      wlp194s0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Work      8a...                                 wifi      --</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># home-vpn  2c...                                 wireguard wg0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Wired     93...                                 ethernet  --</span>
+</span></span></code></pre></div><p>The <code>DEVICE</code> column on <code>connection show</code> is &ldquo;what device is this profile currently active on, if any.&rdquo; Profiles can exist without being active (Work is saved but not connected right now).</p>
+<p>Once this distinction clicks, every <code>nmcli</code> command makes sense. Almost every command either operates on a device (bring up/down, reassociate, scan) or on a connection (add, modify, delete, activate).</p>
+<h2 id="connection-profiles-whats-in-one">Connection profiles: what&rsquo;s in one<a hidden class="anchor" aria-hidden="true" href="#connection-profiles-whats-in-one">#</a></h2>
+<p>A connection is a typed settings dictionary. Different connection <em>types</em> (wifi, ethernet, wireguard, bridge, bond, vlan, team, macvlan, vpn, gsm, bluetooth, loopback, etc.) use different settings.</p>
+<p>The core settings are organized into <strong>sections</strong>, each with their own prefix:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Section</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>connection</code></td>
+          <td>Identity: name, UUID, type, autoconnect, zone, timestamp</td>
+      </tr>
+      <tr>
+          <td><code>ipv4</code>, <code>ipv6</code></td>
+          <td>Address config: method, addresses, gateway, DNS, routes, DHCP options</td>
+      </tr>
+      <tr>
+          <td><code>802-3-ethernet</code></td>
+          <td>Ethernet-specific: MAC, MTU, wake-on-LAN</td>
+      </tr>
+      <tr>
+          <td><code>802-11-wireless</code></td>
+          <td>WiFi: SSID, mode, band, channel, BSSID, hidden, powersave</td>
+      </tr>
+      <tr>
+          <td><code>802-11-wireless-security</code></td>
+          <td>WiFi auth: key-mgmt, PSK, WPA version, EAP</td>
+      </tr>
+      <tr>
+          <td><code>802-1x</code></td>
+          <td>Enterprise EAP: eap type, identity, CA cert, client cert, phase2</td>
+      </tr>
+      <tr>
+          <td><code>wireguard</code></td>
+          <td>WireGuard: private-key, listen-port, fwmark, peers&hellip;</td>
+      </tr>
+      <tr>
+          <td><code>vpn</code></td>
+          <td>Plugin-based VPNs: openvpn, strongswan, openconnect</td>
+      </tr>
+      <tr>
+          <td><code>bridge</code>, <code>bond</code>, <code>vlan</code>, <code>team</code></td>
+          <td>Virtual interface types</td>
+      </tr>
+      <tr>
+          <td><code>proxy</code></td>
+          <td>PAC / HTTP proxy settings</td>
+      </tr>
+  </tbody>
+</table>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection show HomeNet         <span style="color:#75715e"># every setting on this profile</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># connection.id:                          HomeNet</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># connection.uuid:                        5f...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># connection.type:                        802-11-wireless</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># connection.autoconnect:                 yes</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># connection.zone:                        home</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ipv4.method:                            auto</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ipv4.dns:                               1.1.1.1,9.9.9.9</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ipv4.addresses:                         --</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ipv4.gateway:                           --</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 802-11-wireless.ssid:                   HomeNet</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 802-11-wireless.mode:                   infrastructure</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 802-11-wireless-security.key-mgmt:      wpa-psk</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 802-11-wireless-security.psk:           &lt;hidden&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ...</span>
+</span></span></code></pre></div><p>Profiles live in <code>/etc/NetworkManager/system-connections/&lt;name&gt;.nmconnection</code> as INI-format keyfiles, mode 0600 (contain passwords). You can edit them by hand, or use <code>nmcli</code> / the GUI.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo ls -la /etc/NetworkManager/system-connections/
+</span></span><span style="display:flex;"><span>sudo cat /etc/NetworkManager/system-connections/HomeNet.nmconnection
+</span></span></code></pre></div><p>The keyfile is the canonical state. If you edit it manually, <code>nmcli connection reload</code> picks up the changes.</p>
+<h2 id="the-ip-method-auto-manual-shared-link-local-disabled">The IP method: <code>auto</code>, <code>manual</code>, <code>shared</code>, <code>link-local</code>, <code>disabled</code><a hidden class="anchor" aria-hidden="true" href="#the-ip-method-auto-manual-shared-link-local-disabled">#</a></h2>
+<p><code>ipv4.method</code> and <code>ipv6.method</code> are where most of the behavior lives. The values:</p>
+<ul>
+<li><strong><code>auto</code></strong> — DHCP (ipv4) or SLAAC+DHCPv6 (ipv6). Normal client.</li>
+<li><strong><code>manual</code></strong> — Static. Set <code>ipv4.addresses</code>, <code>ipv4.gateway</code>, <code>ipv4.dns</code>, <code>ipv4.routes</code> by hand.</li>
+<li><strong><code>shared</code></strong> — <em>The laptop becomes a router.</em> This is the hotspot/NAT-sharing mode. NM spins up dnsmasq on the interface, hands out DHCP leases on 10.42.0.0/24 (ipv4) or a ULA prefix (ipv6), enables IP forwarding, sets up NAT masquerade via firewalld, allows DNS forwarding. One command and you&rsquo;re sharing your upstream connection.</li>
+<li><strong><code>link-local</code></strong> — 169.254.x.x, no DHCP. Useful for direct peer links.</li>
+<li><strong><code>disabled</code></strong> — no IP on this family. Common for <code>ipv6.method=disabled</code> if you don&rsquo;t want v6.</li>
+</ul>
+<p>You&rsquo;ve already used <code>shared</code> for your hotspot experiments. That&rsquo;s the magic word — NM does the whole NAT+DHCP+DNS-forward setup in response to <code>ipv4.method=shared</code>, no manual dnsmasq needed.</p>
+<h2 id="device-states-and-the-lifecycle">Device states and the lifecycle<a hidden class="anchor" aria-hidden="true" href="#device-states-and-the-lifecycle">#</a></h2>
+<p>Every NM-managed device moves through a defined state machine:</p>
+<pre tabindex="0"><code>unmanaged  → unavailable  → disconnected  → prepare  → config
+    ↑                                                      │
+    │                                                      ▼
+    └─────  deactivating ←  activated  ←  ip-config  ←  need-auth
+</code></pre><p>The states you&rsquo;ll see:</p>
+<table>
+  <thead>
+      <tr>
+          <th>State</th>
+          <th>Meaning</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>unmanaged</code></td>
+          <td>NM isn&rsquo;t touching this device (explicitly or by config)</td>
+      </tr>
+      <tr>
+          <td><code>unavailable</code></td>
+          <td>Hardware not ready (WiFi radio off, cable unplugged)</td>
+      </tr>
+      <tr>
+          <td><code>disconnected</code></td>
+          <td>Ready but no active connection</td>
+      </tr>
+      <tr>
+          <td><code>prepare</code></td>
+          <td>Bringing up the link layer</td>
+      </tr>
+      <tr>
+          <td><code>config</code></td>
+          <td>Authenticating / associating</td>
+      </tr>
+      <tr>
+          <td><code>need-auth</code></td>
+          <td>Waiting for credentials (user/password prompt, etc.)</td>
+      </tr>
+      <tr>
+          <td><code>ip-config</code></td>
+          <td>Running DHCP / configuring addresses</td>
+      </tr>
+      <tr>
+          <td><code>ip-check</code></td>
+          <td>Post-config connectivity check</td>
+      </tr>
+      <tr>
+          <td><code>secondaries</code></td>
+          <td>Activating dependent connections (VPN on top of WiFi)</td>
+      </tr>
+      <tr>
+          <td><code>activated</code></td>
+          <td>Fully up, routes installed, DNS configured</td>
+      </tr>
+      <tr>
+          <td><code>deactivating</code></td>
+          <td>Tearing down</td>
+      </tr>
+      <tr>
+          <td><code>failed</code></td>
+          <td>Activation failed</td>
+      </tr>
+  </tbody>
+</table>
+<p>When something&rsquo;s not working, the state tells you which phase is stuck.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device monitor                 <span style="color:#75715e"># watch state transitions live</span>
+</span></span><span style="display:flex;"><span>nmcli connection monitor
+</span></span><span style="display:flex;"><span>journalctl -u NetworkManager -f      <span style="color:#75715e"># detailed logs</span>
+</span></span></code></pre></div><h2 id="nmcli-the-full-vocabulary">nmcli: the full vocabulary<a hidden class="anchor" aria-hidden="true" href="#nmcli-the-full-vocabulary">#</a></h2>
+<p><code>nmcli</code> is NM&rsquo;s command-line interface. Four objects:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli general        <span style="color:#75715e"># NM-wide state, hostname, logging</span>
+</span></span><span style="display:flex;"><span>nmcli networking     <span style="color:#75715e"># master enable/disable</span>
+</span></span><span style="display:flex;"><span>nmcli radio          <span style="color:#75715e"># wifi/wwan radio enable/disable</span>
+</span></span><span style="display:flex;"><span>nmcli device         <span style="color:#75715e"># interfaces</span>
+</span></span><span style="display:flex;"><span>nmcli connection     <span style="color:#75715e"># profiles</span>
+</span></span><span style="display:flex;"><span>nmcli agent          <span style="color:#75715e"># secret agent (password prompts)</span>
+</span></span><span style="display:flex;"><span>nmcli monitor        <span style="color:#75715e"># real-time events</span>
+</span></span></code></pre></div><p>The common verbs: <code>show</code>, <code>status</code>, <code>up</code>, <code>down</code>, <code>connect</code>, <code>disconnect</code>, <code>add</code>, <code>modify</code>, <code>delete</code>, <code>reload</code>, <code>scan</code>.</p>
+<h3 id="everyday-recipes">Everyday recipes<a hidden class="anchor" aria-hidden="true" href="#everyday-recipes">#</a></h3>
+<p><strong>Connect to WiFi by SSID:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device wifi list                    <span style="color:#75715e"># scan</span>
+</span></span><span style="display:flex;"><span>nmcli device wifi connect <span style="color:#e6db74">&#34;MyNet&#34;</span> password <span style="color:#e6db74">&#34;hunter2&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># creates a profile named MyNet if it doesn&#39;t exist, activates it</span>
+</span></span></code></pre></div><p><strong>Connect to hidden WiFi:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device wifi connect <span style="color:#e6db74">&#34;HiddenNet&#34;</span> password <span style="color:#e6db74">&#34;pw&#34;</span> hidden yes
+</span></span></code></pre></div><p><strong>Bring a saved connection up/down:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection up HomeNet
+</span></span><span style="display:flex;"><span>nmcli connection down HomeNet
+</span></span></code></pre></div><p><strong>Disconnect a device (puts it in <code>disconnected</code> state):</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device disconnect wlp194s0
+</span></span></code></pre></div><p><strong>Delete a saved profile:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection delete HomeNet
+</span></span></code></pre></div><p><strong>Static-IP ethernet:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection add type ethernet con-name StaticHome ifname eno1 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.method manual <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.addresses 192.168.1.50/24 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.gateway 192.168.1.1 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.dns <span style="color:#e6db74">&#34;1.1.1.1,9.9.9.9&#34;</span>
+</span></span><span style="display:flex;"><span>nmcli connection up StaticHome
+</span></span></code></pre></div><p><strong>Modify a field on an existing connection:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection modify HomeNet ipv4.dns <span style="color:#e6db74">&#34;1.1.1.1&#34;</span>       <span style="color:#75715e"># replace</span>
+</span></span><span style="display:flex;"><span>nmcli connection modify HomeNet +ipv4.dns <span style="color:#e6db74">&#34;9.9.9.9&#34;</span>      <span style="color:#75715e"># append</span>
+</span></span><span style="display:flex;"><span>nmcli connection modify HomeNet -ipv4.dns <span style="color:#e6db74">&#34;9.9.9.9&#34;</span>      <span style="color:#75715e"># remove</span>
+</span></span><span style="display:flex;"><span>nmcli connection modify HomeNet ipv4.ignore-auto-dns yes <span style="color:#75715e"># use manual DNS, not DHCP&#39;s</span>
+</span></span></code></pre></div><p>Modifications take effect on the next <code>connection up</code>. If the connection is currently active, you&rsquo;ll need to re-activate:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection down HomeNet <span style="color:#f92672">&amp;&amp;</span> nmcli connection up HomeNet
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or the shortcut, which reapplies compatible changes without tearing down:</span>
+</span></span><span style="display:flex;"><span>nmcli device reapply wlp194s0
+</span></span></code></pre></div><p><strong>The <code>modify</code> scope:</strong> NM settings use dotted paths (<code>ipv4.dns</code>, <code>802-11-wireless.ssid</code>). <code>nmcli connection modify CONNAME SETTING VALUE</code> is the pattern. For list-valued settings, <code>+</code>/<code>-</code> append/remove.</p>
+<p><strong>Interactive editor</strong> (useful for complex edits):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection edit HomeNet
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># (drops you into a sub-shell with tab completion and `set`, `describe`, `save`)</span>
+</span></span></code></pre></div><p><strong>Create a WiFi hotspot</strong> (the command we used earlier):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli device wifi hotspot ifname wlp194s0 ssid MyAP password <span style="color:#e6db74">&#34;somepass123&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># creates a wifi profile with mode=ap, ipv4.method=shared, fires it up</span>
+</span></span></code></pre></div><p><strong>WireGuard:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection add type wireguard con-name wg-home ifname wg0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.method manual ipv4.addresses 10.9.0.2/24 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    wireguard.private-key <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>wg genkey<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    wireguard.listen-port <span style="color:#ae81ff">51820</span>
+</span></span><span style="display:flex;"><span>nmcli connection modify wg-home <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    +wireguard-peer.&lt;PEER-PUBKEY&gt; <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    wireguard-peer.&lt;PEER-PUBKEY&gt;.endpoint <span style="color:#e6db74">&#34;server:51820&#34;</span> <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    wireguard-peer.&lt;PEER-PUBKEY&gt;.allowed-ips <span style="color:#e6db74">&#34;0.0.0.0/0&#34;</span>
+</span></span><span style="display:flex;"><span>nmcli connection up wg-home
+</span></span></code></pre></div><p>(Syntax is verbose; the keyfile is often easier to write directly for WG.)</p>
+<h3 id="terse-output-for-scripting">Terse output for scripting<a hidden class="anchor" aria-hidden="true" href="#terse-output-for-scripting">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli -t -f NAME,UUID,TYPE connection show             <span style="color:#75715e"># tab-separated, selected fields</span>
+</span></span><span style="display:flex;"><span>nmcli -t -f DEVICE,STATE,CONNECTION device status
+</span></span><span style="display:flex;"><span>nmcli -g STATE device status                           <span style="color:#75715e"># raw values, one per line</span>
+</span></span></code></pre></div><p><code>-t</code> = terse; <code>-f</code> = fields; <code>-g</code> = get (one value only). Good for shell pipelines.</p>
+<h2 id="secrets-the-agent-model-and-how-passwords-flow">Secrets, the agent model, and how passwords flow<a hidden class="anchor" aria-hidden="true" href="#secrets-the-agent-model-and-how-passwords-flow">#</a></h2>
+<p>NM splits &ldquo;policy&rdquo; (the connection profile) from &ldquo;secrets&rdquo; (passwords, keys). A profile can store secrets itself, or defer them to an <strong>agent</strong>.</p>
+<p>Storage flags per secret, expressed as <code>802-11-wireless-security.psk-flags</code>:</p>
+<ul>
+<li><code>0</code> = store plainly in system keyfile (readable by root)</li>
+<li><code>1</code> = agent-owned, stored encrypted in the desktop keyring (GNOME Keyring, KDE Wallet)</li>
+<li><code>2</code> = ask every time (no storage)</li>
+<li><code>4</code> = not required</li>
+</ul>
+<p>When a connection needs a secret, NM calls its registered agents over D-Bus. Each desktop environment ships one:</p>
+<ul>
+<li><strong>gnome-shell</strong> — integrates with GNOME Keyring, prompts via GNOME&rsquo;s dialog.</li>
+<li><strong>plasma-nm</strong> — integrates with KDE Wallet.</li>
+<li><strong>nm-applet</strong> — for non-GNOME/KDE DEs with the tray applet.</li>
+<li><strong>nmcli</strong> itself — can act as an agent on headless/TTY systems (prompts in the terminal when you run <code>nmcli connection up</code> on a connection with agent-owned secrets).</li>
+</ul>
+<p>A server without a desktop session has no agent running. If you save WiFi credentials with agent-owned flags on such a system, nothing can prompt, and activation fails. Fix: <code>nmcli connection modify CONNAME 802-11-wireless-security.psk-flags 0</code> to store system-wide. Similarly, connections used at boot must store their secrets in the system keyfile.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli --ask connection up HomeNet     <span style="color:#75715e"># prompt interactively for any missing secrets</span>
+</span></span></code></pre></div><h2 id="the-d-bus-api">The D-Bus API<a hidden class="anchor" aria-hidden="true" href="#the-d-bus-api">#</a></h2>
+<p>NM is a D-Bus citizen: <code>org.freedesktop.NetworkManager</code> on the system bus. Every operation <code>nmcli</code> does is a D-Bus call; every GUI client speaks the same API.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl tree org.freedesktop.NetworkManager | less
+</span></span></code></pre></div><p>The shape:</p>
+<ul>
+<li><code>/org/freedesktop/NetworkManager</code> — the manager, with methods like <code>ActivateConnection</code>, <code>GetDevices</code>, <code>CheckConnectivity</code>, and properties like <code>State</code>, <code>Connectivity</code>, <code>PrimaryConnection</code>.</li>
+<li><code>/org/freedesktop/NetworkManager/Devices/&lt;n&gt;</code> — one per device, with state, addresses, statistics, active connection.</li>
+<li><code>/org/freedesktop/NetworkManager/Settings</code> — connection profiles.</li>
+<li><code>/org/freedesktop/NetworkManager/ActiveConnection/&lt;n&gt;</code> — currently-active activations.</li>
+<li><code>/org/freedesktop/NetworkManager/IP4Config/&lt;n&gt;</code>, <code>IP6Config/&lt;n&gt;</code>, <code>DHCP4Config/&lt;n&gt;</code> — applied configs.</li>
+</ul>
+<p>Signals: <code>StateChanged</code>, <code>DeviceAdded</code>, <code>DeviceRemoved</code>, <code>PropertiesChanged</code> everywhere. Apps subscribe to these to redraw indicators, run &ldquo;on connect&rdquo; scripts, etc.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl --match <span style="color:#e6db74">&#34;type=signal,sender=org.freedesktop.NetworkManager&#34;</span> monitor
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># watch every NM signal live as you plug/unplug, connect/disconnect</span>
+</span></span></code></pre></div><p>Polkit gates the privileged methods. The actions are named <code>org.freedesktop.NetworkManager.*</code> — <code>network-control</code>, <code>enable-disable-network</code>, <code>wifi-share-open</code>, <code>settings.modify.system</code>, etc. GNOME Shell&rsquo;s network applet, running as your user, calls these via D-Bus; polkit decides if you&rsquo;re allowed.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>pkaction --verbose --action-id org.freedesktop.NetworkManager.settings.modify.system
+</span></span></code></pre></div><h2 id="dispatcher-scripts-the-run-this-on-connectdisconnect-hook">Dispatcher scripts: the &ldquo;run this on connect/disconnect&rdquo; hook<a hidden class="anchor" aria-hidden="true" href="#dispatcher-scripts-the-run-this-on-connectdisconnect-hook">#</a></h2>
+<p>NM runs scripts from <code>/etc/NetworkManager/dispatcher.d/</code> on every state transition, with the event type and device as arguments. Classic use: &ldquo;when I connect to Work WiFi, start the corporate VPN.&rdquo; &ldquo;When the laptop gets an address on ethernet, kick a sync.&rdquo;</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo tee /etc/NetworkManager/dispatcher.d/10-log.sh &gt;/dev/null <span style="color:#e6db74">&lt;&lt;&#39;EOF&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">#!/bin/bash
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74"># Arguments: $1 = interface, $2 = event
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">logger -t nm-dispatcher &#34;interface=$1 event=$2 CON_ID=$CONNECTION_ID&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span>sudo chmod +x /etc/NetworkManager/dispatcher.d/10-log.sh
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Events include: up, down, pre-up, pre-down, vpn-up, vpn-down, hostname,</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># dhcp4-change, dhcp6-change, connectivity-change</span>
+</span></span></code></pre></div><p>Environment variables passed: <code>CONNECTION_UUID</code>, <code>CONNECTION_ID</code>, <code>DEVICE_IFACE</code>, plus DHCP info (<code>DHCP4_*</code>), IP config, routes, DNS, etc. Full list in <code>man NetworkManager-dispatcher</code>.</p>
+<p>These run as root. They block the state transition until they complete (with a timeout). Keep them fast, and prefer launching longer work asynchronously.</p>
+<h2 id="integrations-with-other-system-services">Integrations with other system services<a hidden class="anchor" aria-hidden="true" href="#integrations-with-other-system-services">#</a></h2>
+<p>NM doesn&rsquo;t do networking alone. It coordinates with several other daemons, and understanding these integrations clarifies a lot of behavior.</p>
+<p><strong>wpa_supplicant</strong> — handles WiFi association and authentication (WPA2/WPA3/EAP). NM spawns it (or uses an existing instance) and drives it over D-Bus. You don&rsquo;t usually interact with it directly. When diagnosing WiFi auth failures, <code>journalctl -u wpa_supplicant</code> is the second place to look after NM&rsquo;s own log.</p>
+<p><strong>DHCP client</strong> — NM has an <em>internal</em> DHCP client (the default on Fedora) and can also use <code>dhclient</code> or <code>dhcpcd</code> via config. Internal is lighter; dhclient is battle-tested. The choice is in <code>/etc/NetworkManager/NetworkManager.conf</code> under <code>[main] dhcp=</code>.</p>
+<p><strong>systemd-resolved</strong> — the stub resolver listening on 127.0.0.53. NM pushes per-link DNS config to resolved via D-Bus (<code>org.freedesktop.resolve1</code>). This is why <code>/etc/resolv.conf</code> on a modern Fedora box just has <code>nameserver 127.0.0.53</code>: the real per-interface DNS servers live inside resolved, queried with <code>resolvectl status</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>resolvectl status
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># see which DNS servers are active on which interfaces, which domains each covers</span>
+</span></span></code></pre></div><p>If NM is configured without resolved integration (<code>/etc/NetworkManager/NetworkManager.conf</code> has <code>dns=none</code> or <code>dns=default</code>), it writes <code>/etc/resolv.conf</code> directly. Most modern configs use <code>dns=systemd-resolved</code>.</p>
+<p><strong>firewalld</strong> — each connection has a <code>connection.zone</code> setting. When activating, NM tells firewalld &ldquo;put this interface in that zone.&rdquo; This is how your AP vif ended up in <code>trusted</code> after you set <code>nmcli connection modify myap connection.zone trusted</code>. Without firewalld, the setting is silently ignored.</p>
+<p><strong>systemd-networkd</strong> — can run alongside NM, but usually one or the other. NM by default will refuse to manage interfaces already being managed by networkd, and vice versa. Don&rsquo;t run both on the same interface.</p>
+<p><strong>VPN plugins</strong> — OpenVPN, WireGuard, strongswan, OpenConnect, libreswan all have NM plugins (<code>NetworkManager-openvpn</code>, etc.) that expose VPN config as ordinary NM connections. The plugin talks to the underlying VPN daemon; NM treats the VPN as just another connection type. WireGuard is special — its kernel support means NM manages it natively, no plugin needed.</p>
+<p><strong>mDNS (Avahi)</strong> — Avahi runs independently but cares about NM: when a new connection activates, Avahi rescans interfaces and starts advertising/listening there.</p>
+<h2 id="configuration-files-and-the-precedence-rules">Configuration files and the precedence rules<a hidden class="anchor" aria-hidden="true" href="#configuration-files-and-the-precedence-rules">#</a></h2>
+<pre tabindex="0"><code>/usr/lib/NetworkManager/conf.d/*.conf    distro defaults
+/run/NetworkManager/conf.d/*.conf         runtime (transient)
+/etc/NetworkManager/conf.d/*.conf         admin overrides — edit here
+/etc/NetworkManager/NetworkManager.conf   main config
+</code></pre><p>NM reads all <code>.conf</code> files in those directories in sort order, later wins. Put your overrides in <code>/etc/NetworkManager/conf.d/</code> rather than editing the main file.</p>
+<p>Common things you&rsquo;ll set:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#75715e"># /etc/NetworkManager/conf.d/99-custom.conf</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[main]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">dhcp</span><span style="color:#f92672">=</span><span style="color:#e6db74">internal</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">dns</span><span style="color:#f92672">=</span><span style="color:#e6db74">systemd-resolved</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[connectivity]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># used for &#34;online&#34; detection; fires connectivity-change dispatcher events</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">uri</span><span style="color:#f92672">=</span><span style="color:#e6db74">http://fedoraproject.org/static/hotspot.txt</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">response</span><span style="color:#f92672">=</span><span style="color:#e6db74">OK</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[device]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Per-device overrides by match expression</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">match-device</span><span style="color:#f92672">=</span><span style="color:#e6db74">interface-name:wlp194s0</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">wifi.powersave</span><span style="color:#f92672">=</span><span style="color:#e6db74">2</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[keyfile]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># What interfaces should NM *not* touch?</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">unmanaged-devices</span><span style="color:#f92672">=</span><span style="color:#e6db74">interface-name:veth*;interface-name:docker*</span>
+</span></span></code></pre></div><p>After editing: <code>sudo systemctl reload NetworkManager</code> (gentler than restart; doesn&rsquo;t drop existing connections).</p>
+<h2 id="device-management-scope-what-nm-touches">Device management scope: what NM touches<a hidden class="anchor" aria-hidden="true" href="#device-management-scope-what-nm-touches">#</a></h2>
+<p>NM decides per-device whether to manage it. The rules, in order:</p>
+<ol>
+<li><strong>Device is explicitly unmanaged</strong> via config (<code>unmanaged-devices=</code> or a keyfile for the device). Won&rsquo;t touch it.</li>
+<li><strong>Device is managed by another daemon</strong> — if systemd-networkd or something else has claimed it, NM backs off.</li>
+<li><strong>Device has <code>NM_UNMANAGED=1</code></strong> set via udev. Won&rsquo;t touch it.</li>
+<li><strong>Device type is in NM&rsquo;s supported list.</strong> Ethernet, WiFi, WireGuard, bridges, bonds, VLANs, teams, infiniband, PPP, tun/tap, macvlan, vrf, ovs-bridge, etc.</li>
+<li>Otherwise: managed.</li>
+</ol>
+<p>Container and VM virtual interfaces are typically excluded by default (docker0, veth*, virbr*, cali*). This is in <code>/usr/lib/NetworkManager/conf.d/</code> on most distros — take a look.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>cat /usr/lib/NetworkManager/conf.d/*.conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Shows the unmanaged-devices rules your distro ships</span>
+</span></span></code></pre></div><p>If you need to unmanage something NM is touching, drop a config:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo tee /etc/NetworkManager/conf.d/99-unmanaged.conf <span style="color:#e6db74">&lt;&lt;EOF
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[keyfile]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">unmanaged-devices=interface-name:tap0;interface-name:myveth*
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span>sudo systemctl reload NetworkManager
+</span></span></code></pre></div><p>This is exactly what you did for <code>ap0</code> earlier when building a manual hotspot.</p>
+<h2 id="activation-the-full-path-traced">Activation: the full path traced<a hidden class="anchor" aria-hidden="true" href="#activation-the-full-path-traced">#</a></h2>
+<p>Putting it together, here&rsquo;s what &ldquo;click Connect to WiFi X&rdquo; actually does.</p>
+<ol>
+<li><strong>GUI client</strong> (gnome-shell&rsquo;s network indicator) is an NM D-Bus client. It calls <code>ActivateConnection(connection=&lt;path&gt;, device=&lt;path&gt;, specific_object=&lt;ap-path&gt;)</code>.</li>
+<li><strong>Polkit</strong> checks whether your session is allowed. Usually yes for local active session.</li>
+<li><strong>NM&rsquo;s state machine</strong> moves the device: <code>disconnected</code> → <code>prepare</code>.</li>
+<li><strong>Link layer</strong>: if ethernet, bring up and wait for carrier; if WiFi, spawn/communicate with wpa_supplicant.</li>
+<li><strong>Authentication</strong> (WiFi): wpa_supplicant associates with the AP, does 4-way handshake using the PSK. If it needs a secret and none is stored: <code>need-auth</code> state, NM calls registered agents over D-Bus, user is prompted, secret flows back.</li>
+<li><strong>IP config</strong>: NM starts its DHCP client on the interface. DISCOVER, OFFER, REQUEST, ACK. Gets IP, gateway, DNS servers, option 121 (classless static routes), option 15 (domain name).</li>
+<li><strong>Route installation</strong>: NM writes routes via netlink. Default gateway via the DHCP-supplied gateway. Per-interface routes. Metric prioritization between multiple active connections.</li>
+<li><strong>DNS push</strong>: NM tells systemd-resolved via D-Bus: &ldquo;for interface wlp194s0, DNS servers are X Y, search domain is home.arpa&rdquo;. resolved updates its per-link config.</li>
+<li><strong>Firewall zone</strong>: NM tells firewalld: &ldquo;put wlp194s0 in zone FedoraWorkstation&rdquo; (or whatever the connection specifies).</li>
+<li><strong>Connectivity check</strong>: NM fetches the connectivity URL over the new connection. Result (<code>full</code>, <code>portal</code>, <code>limited</code>, <code>none</code>) is stored as the <code>Connectivity</code> property.</li>
+<li><strong>Dispatcher scripts</strong> in <code>/etc/NetworkManager/dispatcher.d/</code> run with <code>up</code> event.</li>
+<li><strong>State change signal</strong> fires on D-Bus. Everyone subscribed (gnome-shell, mail clients, sync daemons, the <code>systemd-networkd-wait-online.service</code>-like equivalents) redraws/reacts.</li>
+</ol>
+<p>Every step logged in <code>journalctl -u NetworkManager</code>. This single trace is the best thing to keep in mind when debugging — when something fails, figure out which step is the one that broke.</p>
+<h2 id="special-connection-types-worth-knowing">Special connection types worth knowing<a hidden class="anchor" aria-hidden="true" href="#special-connection-types-worth-knowing">#</a></h2>
+<p><strong>Ethernet</strong> — boring by design. Plugs in, gets DHCP, works. Creates an auto-generated &ldquo;Wired connection 1&rdquo; profile on first use.</p>
+<p><strong>WiFi client (<code>mode=infrastructure</code>)</strong> — the normal WiFi case. SSID, security, go.</p>
+<p><strong>WiFi AP (<code>mode=ap</code>)</strong> — hotspot mode. Combined with <code>ipv4.method=shared</code> you get NAT+DHCP+DNS out of the box. The <code>nmcli device wifi hotspot</code> shortcut builds this for you.</p>
+<p><strong>WiFi Ad-Hoc (<code>mode=adhoc</code>)</strong> — peer-to-peer WiFi, largely dead in favor of WiFi Direct / hotspot sharing. Rare.</p>
+<p><strong>Mesh (<code>mode=mesh</code>)</strong> — 802.11s mesh networks. Niche but supported.</p>
+<p><strong>Bond / Team / Bridge / VLAN</strong> — virtual interfaces. You create the master connection (the bridge/bond itself), then individual slave connections that say &ldquo;my <code>connection.master</code> is this bridge.&rdquo; NM activates them in order.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>nmcli connection add type bridge con-name br0 ifname br0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    ipv4.method manual ipv4.addresses 192.168.1.10/24 ipv4.gateway 192.168.1.1
+</span></span><span style="display:flex;"><span>nmcli connection add type ethernet con-name br0-eno1 ifname eno1 master br0
+</span></span><span style="display:flex;"><span>nmcli connection up br0
+</span></span></code></pre></div><p><strong>WireGuard</strong> — natively supported (no plugin). Entire peer table is in the connection settings. Routes auto-computed from <code>allowed-ips</code> unless you override.</p>
+<p><strong>VPN (plugin-based)</strong> — OpenVPN, OpenConnect, strongswan, libreswan, etc. Install the NM plugin, the VPN type appears. Can be layered on top of another connection (the &ldquo;secondary connection&rdquo; mechanism: VPN-on-WiFi activates WiFi first, then VPN).</p>
+<p><strong>GSM/WWAN</strong> — cellular modems. Needs ModemManager daemon running alongside.</p>
+<p><strong>PPP / PPPoE</strong> — DSL and legacy. Still works.</p>
+<p><strong>Loopback</strong> — since NM 1.42+, NM can manage the loopback interface too (for setting extra addresses etc.).</p>
+<h2 id="tutorial-trace-a-real-session-on-your-machine">Tutorial: trace a real session on your machine<a hidden class="anchor" aria-hidden="true" href="#tutorial-trace-a-real-session-on-your-machine">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 1. Current state</span>
+</span></span><span style="display:flex;"><span>nmcli general status
+</span></span><span style="display:flex;"><span>nmcli device status
+</span></span><span style="display:flex;"><span>nmcli connection show --active
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 2. What&#39;s the primary connection?</span>
+</span></span><span style="display:flex;"><span>nmcli -g PRIMARY-CONNECTION general status
+</span></span><span style="display:flex;"><span>nmcli -g connection.id connection show &lt;uuid-of-primary&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 3. What did DHCP give us?</span>
+</span></span><span style="display:flex;"><span>nmcli -f IP4 device show wlp194s0
+</span></span><span style="display:flex;"><span>nmcli -f DHCP4 device show wlp194s0        <span style="color:#75715e"># full DHCP option set</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 4. What DNS is in effect?</span>
+</span></span><span style="display:flex;"><span>resolvectl status wlp194s0
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 5. What firewall zone is the interface in?</span>
+</span></span><span style="display:flex;"><span>firewall-cmd --get-zone-of-interface<span style="color:#f92672">=</span>wlp194s0
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 6. What routes exist?</span>
+</span></span><span style="display:flex;"><span>ip route
+</span></span><span style="display:flex;"><span>ip -6 route
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 7. Connectivity check result</span>
+</span></span><span style="display:flex;"><span>nmcli -g CONNECTIVITY general status
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 8. Watch live</span>
+</span></span><span style="display:flex;"><span>nmcli monitor &amp;
+</span></span><span style="display:flex;"><span>sudo journalctl -u NetworkManager -f &amp;
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Now disconnect/reconnect WiFi from the menu; watch both streams</span>
+</span></span></code></pre></div><p>This will teach you more about NM in five minutes than an hour of reading.</p>
+<h2 id="things-that-trip-people-up">Things that trip people up<a hidden class="anchor" aria-hidden="true" href="#things-that-trip-people-up">#</a></h2>
+<p><strong>Confusing device and connection.</strong> &ldquo;I deleted the connection and now my WiFi doesn&rsquo;t work&rdquo; — deleting the profile doesn&rsquo;t remove the device. The device still exists; it just has no active profile. Create a new one (or <code>nmcli device wifi connect</code> recreates one).</p>
+<p><strong>Expecting <code>modify</code> to take effect immediately.</strong> Changes to a live connection require reactivation. <code>nmcli device reapply &lt;dev&gt;</code> handles most changes without a full down/up cycle.</p>
+<p><strong><code>auto</code> + <code>manual</code> DNS confusion.</strong> If <code>ipv4.method=auto</code>, you get DHCP&rsquo;s DNS by default. Setting <code>ipv4.dns</code> adds to the list but doesn&rsquo;t replace. To <em>replace</em>, also set <code>ipv4.ignore-auto-dns yes</code>. Same for routes (<code>ipv4.ignore-auto-routes</code>).</p>
+<p><strong><code>connection.autoconnect</code>.</strong> Default is <code>yes</code>. If you want a saved profile NM knows about but doesn&rsquo;t grab on boot, set <code>autoconnect no</code>. Hot pain point: your hotspot profile auto-activates on boot, stealing the radio from your client profile.</p>
+<p><strong>Connection priority</strong>. With multiple autoconnect-yes profiles, NM picks by priority (<code>connection.autoconnect-priority</code>, higher wins) and timestamp (more recently used wins). Set explicit priorities if it matters.</p>
+<p><strong>Hotspot vs. client on one radio.</strong> As we spent much time on: NM&rsquo;s hotspot mode wants to use the radio exclusively. Whether concurrent AP+STA works depends on the driver (MT7925 says yes, but buggily; Intel ax210 is better; some are flat-out no).</p>
+<p><strong>Wi-Fi powersave tanking latency.</strong> By default NM enables <code>wifi.powersave=3</code>. For gaming or low-latency: <code>nmcli connection modify &lt;name&gt; 802-11-wireless.powersave 2</code> (disabled) or set globally in conf.d. Trade-off: some battery life.</p>
+<p><strong>MAC randomization by default.</strong> Since ~1.16, NM randomizes WiFi MAC per connection for privacy. Breaks static-lease setups. <code>802-11-wireless.cloned-mac-address permanent</code> disables for that connection; <code>wifi.scan-rand-mac-address=no</code> in config disables scan-time randomization globally.</p>
+<p><strong>Secret storage flags on headless systems.</strong> Agent-owned secrets need an agent. No desktop → no agent → activation fails silently. Use <code>psk-flags 0</code> for system-stored, or run <code>nmcli connection up --ask</code> for interactive prompting.</p>
+<p><strong>Dispatcher scripts hanging state transitions.</strong> Scripts run synchronously. A slow dispatcher script delays <code>up</code>/<code>down</code> from being reported. Keep them fast.</p>
+<p><strong>Multiple active profiles on one device.</strong> By design, one profile per device at a time. Attempting to activate a second deactivates the first.</p>
+<p><strong><code>nmcli</code> device reapply doesn&rsquo;t handle all changes.</strong> Switching encryption types, changing from dhcp to static — these require full down/up. When in doubt, <code>down</code> then <code>up</code>.</p>
+<p><strong>NM and Docker/Podman/libvirt.</strong> Container networking creates virtual interfaces NM shouldn&rsquo;t touch. Distros ship unmanaged rules for <code>docker0</code>, <code>veth*</code>, <code>virbr*</code>, etc. If you add custom bridge names, extend the <code>unmanaged-devices=</code> list.</p>
+<p><strong>systemd-networkd-wait-online fighting NM.</strong> Servers sometimes have both installed; the wait-online service from networkd sits forever because networkd isn&rsquo;t actually managing anything. Disable the wrong one. For NM: <code>systemctl enable NetworkManager-wait-online.service</code>.</p>
+<h2 id="how-nm-fits-with-everything-else">How NM fits with everything else<a hidden class="anchor" aria-hidden="true" href="#how-nm-fits-with-everything-else">#</a></h2>
+<ul>
+<li><strong>vs kernel + <code>ip</code> / <code>iw</code> / <code>nft</code>.</strong> NM is userspace. It drives the kernel via netlink (for links, addresses, routes), wpa_supplicant for 802.11 auth, and its own DHCP client. When NM and <code>ip</code> fight (you <code>ip route add</code> something NM thinks it owns), NM may overwrite.</li>
+<li><strong>vs systemd-networkd.</strong> Alternative daemon. Same substrate, different philosophy — networkd is declarative, doesn&rsquo;t do D-Bus, wpa_supplicant isn&rsquo;t integrated.</li>
+<li><strong>vs wpa_supplicant.</strong> NM uses it for WiFi auth. You can drive wpa_supplicant directly if you prefer; NM just makes it easy.</li>
+<li><strong>vs iwd.</strong> Intel&rsquo;s alternative WiFi daemon, competing with wpa_supplicant. Some distros (crostini, some minimal setups) use iwd + systemd-networkd. NM can also use iwd instead of wpa_supplicant if configured.</li>
+<li><strong>vs resolved / firewalld.</strong> Integrations, not rivals. NM pushes configuration into them.</li>
+<li><strong>vs the desktop.</strong> GNOME / KDE ship NM applets that are D-Bus clients of NM. Nothing about the GUI is privileged; it all goes through NM, which goes through polkit.</li>
+<li><strong>vs ModemManager.</strong> Separate daemon for cellular/WWAN. NM talks to MM over D-Bus to manage mobile connections.</li>
+</ul>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Overview</span>
+</span></span><span style="display:flex;"><span>nmcli                                       <span style="color:#75715e"># general status</span>
+</span></span><span style="display:flex;"><span>nmcli general status
+</span></span><span style="display:flex;"><span>nmcli device status
+</span></span><span style="display:flex;"><span>nmcli connection show
+</span></span><span style="display:flex;"><span>nmcli connection show --active
+</span></span><span style="display:flex;"><span>nmcli radio                                 <span style="color:#75715e"># wifi/wwan state</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Devices</span>
+</span></span><span style="display:flex;"><span>nmcli device wifi list
+</span></span><span style="display:flex;"><span>nmcli device wifi rescan
+</span></span><span style="display:flex;"><span>nmcli device wifi connect <span style="color:#e6db74">&#34;SSID&#34;</span> password <span style="color:#e6db74">&#34;pw&#34;</span>
+</span></span><span style="display:flex;"><span>nmcli device disconnect &lt;iface&gt;
+</span></span><span style="display:flex;"><span>nmcli device reapply &lt;iface&gt;
+</span></span><span style="display:flex;"><span>nmcli device show &lt;iface&gt;                   <span style="color:#75715e"># everything about a device</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Connections</span>
+</span></span><span style="display:flex;"><span>nmcli connection add type &lt;TYPE&gt; con-name &lt;NAME&gt; ifname &lt;IFACE&gt; <span style="color:#f92672">[</span>settings...<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>nmcli connection modify &lt;NAME&gt; &lt;field&gt; &lt;value&gt;
+</span></span><span style="display:flex;"><span>nmcli connection delete &lt;NAME&gt;
+</span></span><span style="display:flex;"><span>nmcli connection up &lt;NAME&gt;
+</span></span><span style="display:flex;"><span>nmcli connection down &lt;NAME&gt;
+</span></span><span style="display:flex;"><span>nmcli connection show &lt;NAME&gt;
+</span></span><span style="display:flex;"><span>nmcli connection reload                     <span style="color:#75715e"># re-read on-disk files</span>
+</span></span><span style="display:flex;"><span>nmcli connection edit &lt;NAME&gt;                <span style="color:#75715e"># interactive editor</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Secrets</span>
+</span></span><span style="display:flex;"><span>nmcli --ask connection up &lt;NAME&gt;            <span style="color:#75715e"># prompt for missing secrets</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Hotspot shortcut</span>
+</span></span><span style="display:flex;"><span>nmcli device wifi hotspot ifname &lt;iface&gt; ssid &lt;NAME&gt; password &lt;PW&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Monitoring</span>
+</span></span><span style="display:flex;"><span>nmcli monitor
+</span></span><span style="display:flex;"><span>nmcli device monitor
+</span></span><span style="display:flex;"><span>journalctl -u NetworkManager -f
+</span></span><span style="display:flex;"><span>busctl monitor org.freedesktop.NetworkManager
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Config</span>
+</span></span><span style="display:flex;"><span>$EDITOR /etc/NetworkManager/NetworkManager.conf
+</span></span><span style="display:flex;"><span>$EDITOR /etc/NetworkManager/conf.d/99-local.conf
+</span></span><span style="display:flex;"><span>sudo systemctl reload NetworkManager
+</span></span><span style="display:flex;"><span>sudo ls /etc/NetworkManager/system-connections/
+</span></span><span style="display:flex;"><span>sudo cat /etc/NetworkManager/system-connections/&lt;name&gt;.nmconnection
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Scripting-friendly output</span>
+</span></span><span style="display:flex;"><span>nmcli -t -f NAME,UUID,TYPE connection show
+</span></span><span style="display:flex;"><span>nmcli -g STATE device status
+</span></span></code></pre></div><h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man NetworkManager</code>, <code>man nmcli</code>, <code>man nm-settings-nmcli</code>, <code>man NetworkManager.conf</code>, <code>man NetworkManager-dispatcher</code></strong> — the reference. <code>nm-settings-nmcli(5)</code> in particular lists every settable field for every connection type. Comprehensive, if dense.</li>
+<li><strong><code>nmcli connection show &lt;name&gt;</code></strong> — the fastest way to remember what settings exist; all fields shown, even the empty ones.</li>
+<li><strong>D-Bus introspection</strong> — <code>busctl tree org.freedesktop.NetworkManager</code> reveals the API surface. For scripts, sometimes easier than <code>nmcli</code>.</li>
+<li><strong>The upstream project pages</strong> at <code>https://networkmanager.dev/</code> (news, migration notes, blog posts from maintainers).</li>
+<li><strong>Dispatcher script examples</strong> on the project&rsquo;s GitLab — useful patterns for &ldquo;do X on connect&rdquo;.</li>
+</ul>
+<p>The mental model to carry: <strong>NetworkManager is a D-Bus daemon that owns network interfaces (devices), applies saved configuration profiles (connections) to them, coordinates with wpa_supplicant, its DHCP client, systemd-resolved, firewalld, and polkit to handle authentication, IP configuration, DNS, firewall zones, and privilege, and exposes all of this as a uniform API for GUIs, CLIs, and scripts.</strong> Once the device/connection distinction is solid and the activation lifecycle (prepare → config → need-auth → ip-config → activated) is in your head, almost every piece of NM&rsquo;s sprawl slots into place, and the deep coordination with the rest of the userspace stack becomes a feature rather than a mystery.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/polkit/">
+    <small>← Previous</small>
+    <span>Polkit</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/logind/">
+    <small>Next →</small>
+    <span>Logind</span>
+  </a></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

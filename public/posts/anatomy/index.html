@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>A brief Anatomy of Desktop Linux | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="A list of tutorials about Linux written by Claude and edited by me. Originally written just for myself, but I found it more helpful than most of the documentations on the internet so decided to share it.">
+<meta name="author" content="Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/anatomy/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.199042e659bc7245f5609d333d6c044eb554a0640849bb874e1dff8eb0f57209.css" integrity="sha256-GZBC5lm8ckX1YJ0zPWwETrVUoGQISbuHTh3/jrD1cgk=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/posts/anatomy/index.xml" title="rss">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/anatomy/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body class="list" id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+<header class="page-header">
+  <h1>A brief Anatomy of Desktop Linux</h1>
+</header><article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Chapter 1: Overview
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>The key insight that ties everything together: modern Linux is a federation of daemons coordinating via well-defined IPC, sitting on top of a kernel that exposes its state through several named APIs. Understanding the seams — where one layer stops and the next begins — is more useful than memorizing any single layer.
+Layer 0: The kernel’s boundaries The kernel exposes itself to userspace through a handful of interfaces, each with a different philosophy:
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:47:34 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Chapter 1: Overview" href="http://localhost:1313/posts/anatomy/overview/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Wayland
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What Wayland is and why it exists For thirty years, Linux GUIs ran on X11 — specifically, on the X.Org server, a giant process that owned the display hardware, received rendering commands from clients over a socket, and drew pixels. Apps were thin clients; the server did everything.
+This made sense in 1984. Your “client” might be a remote mainframe; the “server” was the graphics terminal in front of you. Network-transparent, thin clients, shared display resources — all virtues for the era.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:59:18 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Wayland" href="http://localhost:1313/posts/anatomy/wayland/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Udev
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What udev is and why it exists Before udev, Linux had two bad options for device files under /dev: ship a giant static directory containing every conceivable device node (MAKEDEV-style, thousands of entries, most unused), or use devfs — an in-kernel filesystem that auto-created nodes but imposed its own naming scheme and was impossible to customize flexibly from userspace.
+udev replaced both. The deal: the kernel knows when devices appear and disappear, but all policy about those devices — their names, permissions, symlinks, which daemons get notified — lives in userspace, driven by rules you can read and modify. /dev becomes a devtmpfs or tmpfs populated dynamically as devices come and go.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:59:03 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Udev" href="http://localhost:1313/posts/anatomy/udev/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Systemd
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What systemd is and why it exists Before systemd, Linux boot was a parade of shell scripts. SysV init ran /etc/init.d/* scripts sequentially based on runlevels; Upstart (Ubuntu’s attempt) added event-based triggers. The problems piled up:
+Slow. Sequential script execution; no parallelism beyond crude tricks. Unreliable. Every daemon invented its own forking/PID-file dance; the init system had no reliable way to know if a service was actually running. Fragmented. Daemon supervision, socket activation, device events, cron, logging, login sessions — each was a separate project with its own config format. Opaque. A service failing at boot meant reading a pile of shell scripts and guessing at ordering dependencies. systemd (started 2010 by Lennart Poettering at Red Hat, now the default on most major distros) took the position that init shouldn’t just start daemons — it should be a platform for managing system state. The design bet was that consolidating service management, socket activation, device events, cgroups, logging, and session tracking into one coherent model would be net-simpler than the alternative, even if the individual project got large.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:58:50 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Systemd" href="http://localhost:1313/posts/anatomy/systemd/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Sysfs
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What sysfs is and why it exists In classical Unix, everything was a file — except the kernel’s internal state. By the 2.4-era Linux kernel, that state was leaking into userspace through an inconsistent mess: ioctls on random device files, /proc entries with ad-hoc text formats, sysctl syscalls, driver-specific character devices. If you wanted to know “what PCI devices are on this bus” or “what’s this disk’s queue depth”, each driver had its own answer.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:58:33 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Sysfs" href="http://localhost:1313/posts/anatomy/sysfs/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Syscalls
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What a syscall is and why it exists The fundamental division in an operating system: user mode can compute, access its own memory, and not much else. Kernel mode can touch hardware, access any memory, configure the CPU, and generally do anything. A userspace program running forever in user mode can add numbers together but can’t open a file, allocate memory from the OS, send a packet, or even exit cleanly.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:58:01 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Syscalls" href="http://localhost:1313/posts/anatomy/syscalls/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">Ioctl
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What ioctl is and why it exists Unix’s core abstraction is the file descriptor: open, read, write, close. Beautifully simple, and wonderfully general when what you’re doing is moving bytes around. But devices aren’t just byte streams. A serial port has a baud rate. A disk has a geometry. A network interface has an MTU and a MAC address. A tape drive rewinds. A terminal has a window size. None of these fit read()/write().
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:57:31 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to Ioctl" href="http://localhost:1313/posts/anatomy/ioctl/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">DRM/KMS
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What DRM/KMS is and why it exists The journey of “userspace program wants pixels on the screen” on Linux has been a long architectural drama. In the 1990s, X.Org (then XFree86) was a root-running monolith that poked graphics cards directly via port I/O and memory-mapped registers. Every GPU driver was an X module; every mode change (resolution, refresh rate) happened in userspace; crashing the X server usually meant a blank screen until reboot. “Kernel involvement in graphics” was limited to getting the PCI device mapped and out of the way.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:55:51 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to DRM/KMS" href="http://localhost:1313/posts/anatomy/drm_kms/"></a>
+</article>
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">DBus
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>What D-Bus is and why it exists By the early 2000s, Linux desktops had a problem: every component needed to talk to every other component. The screensaver needed to know when you’re idle. The volume applet needed to ask PulseAudio for the current level. The network applet needed to talk to whatever managed networking. The media player needed to inhibit screen lock during video playback.
+What existed: CORBA (heavyweight and hated), ad-hoc Unix sockets (everyone rolled their own protocol), X11 atoms (abused as IPC), DCOP in KDE and Bonobo in GNOME (desktop-specific, incompatible). Every component pair invented or picked their own IPC.
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-04-19 20:55:22 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span></footer>
+  <a class="entry-link" aria-label="post link to DBus" href="http://localhost:1313/posts/anatomy/d_bus/"></a>
+</article>
+
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

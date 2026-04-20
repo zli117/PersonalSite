@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Pam | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="PAM: a practical guide
+What PAM is and why it exists
+In early Unix, authentication was hardcoded. The login program read /etc/passwd, compared a crypted password, let you in or didn&rsquo;t. su did the same check. ftpd had its own copy of the check. Every program that needed to authenticate users re-implemented the same logic against the same files.
+This broke as soon as sites wanted anything beyond /etc/passwd:
+
+NIS (Yellow Pages) — network-shared user databases.
+Kerberos — ticket-based auth.
+LDAP — directory services.
+Shadow passwords — moving the hash out of the world-readable /etc/passwd.
+One-time passwords — S/Key, SecurID tokens.
+Smartcards, biometrics, FIDO2 — hardware auth.
+
+For each new mechanism, you had to patch every authenticating program. login, su, ftpd, sshd, cron, passwd, screen, the display manager — dozens of programs, each with their own recompile-the-world to support a new auth backend. Worse, sites wanted to combine mechanisms: &ldquo;require password AND smartcard&rdquo;, &ldquo;try Kerberos then fall back to local password&rdquo;, &ldquo;rate-limit failed attempts&rdquo;, &ldquo;log to audit&rdquo;.">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/pam/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/pam/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Pam
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 22:11:48 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/procfs/">
+    <small>← Previous</small>
+    <span>Procfs</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/polkit/">
+    <small>Next →</small>
+    <span>Polkit</span>
+  </a></nav>
+  <div class="post-content"><h1 id="pam-a-practical-guide">PAM: a practical guide<a hidden class="anchor" aria-hidden="true" href="#pam-a-practical-guide">#</a></h1>
+<h2 id="what-pam-is-and-why-it-exists">What PAM is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-pam-is-and-why-it-exists">#</a></h2>
+<p>In early Unix, authentication was hardcoded. The <code>login</code> program read <code>/etc/passwd</code>, compared a crypted password, let you in or didn&rsquo;t. <code>su</code> did the same check. <code>ftpd</code> had its own copy of the check. Every program that needed to authenticate users re-implemented the same logic against the same files.</p>
+<p>This broke as soon as sites wanted anything beyond <code>/etc/passwd</code>:</p>
+<ul>
+<li><strong>NIS</strong> (Yellow Pages) — network-shared user databases.</li>
+<li><strong>Kerberos</strong> — ticket-based auth.</li>
+<li><strong>LDAP</strong> — directory services.</li>
+<li><strong>Shadow passwords</strong> — moving the hash out of the world-readable <code>/etc/passwd</code>.</li>
+<li><strong>One-time passwords</strong> — S/Key, SecurID tokens.</li>
+<li><strong>Smartcards, biometrics, FIDO2</strong> — hardware auth.</li>
+</ul>
+<p>For each new mechanism, you had to patch <em>every</em> authenticating program. <code>login</code>, <code>su</code>, <code>ftpd</code>, <code>sshd</code>, <code>cron</code>, <code>passwd</code>, <code>screen</code>, the display manager — dozens of programs, each with their own recompile-the-world to support a new auth backend. Worse, sites wanted to <em>combine</em> mechanisms: &ldquo;require password AND smartcard&rdquo;, &ldquo;try Kerberos then fall back to local password&rdquo;, &ldquo;rate-limit failed attempts&rdquo;, &ldquo;log to audit&rdquo;.</p>
+<p><strong>PAM</strong> (Pluggable Authentication Modules) is the answer, dating from 1995 (Sun originally, adopted by Linux-PAM in 1996). The core idea: <strong>applications stop implementing authentication themselves</strong>. Instead, they call the PAM library, which reads a config file and runs a chain of plugin modules that do the actual work. Add a new auth mechanism? Write a PAM module. Every PAM-aware program gets it for free.</p>
+<p>On modern Linux, essentially every program that authenticates users — <code>login</code>, <code>sshd</code>, <code>sudo</code>, <code>su</code>, <code>passwd</code>, <code>systemd-logind</code> (via <code>pam_systemd</code>), display managers, <code>cron</code>, <code>cockpit</code> — is a PAM client. The list of installed PAM modules on your system shapes how all of them behave.</p>
+<h2 id="the-central-abstraction-four-stacks-and-a-chain">The central abstraction: four stacks and a chain<a hidden class="anchor" aria-hidden="true" href="#the-central-abstraction-four-stacks-and-a-chain">#</a></h2>
+<p>PAM groups authentication-related operations into <strong>four independent management groups</strong> (sometimes called &ldquo;facilities&rdquo; or &ldquo;types&rdquo;):</p>
+<table>
+  <thead>
+      <tr>
+          <th>Group</th>
+          <th>Question it answers</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong><code>auth</code></strong></td>
+          <td>&ldquo;Is this person who they claim to be?&rdquo; (Verify identity.)</td>
+      </tr>
+      <tr>
+          <td><strong><code>account</code></strong></td>
+          <td>&ldquo;Is this account allowed to log in right now?&rdquo; (Policy: expired? locked? time restrictions?)</td>
+      </tr>
+      <tr>
+          <td><strong><code>password</code></strong></td>
+          <td>&ldquo;Change this account&rsquo;s credentials.&rdquo; (Invoked by <code>passwd</code>, etc.)</td>
+      </tr>
+      <tr>
+          <td><strong><code>session</code></strong></td>
+          <td>&ldquo;Set up / tear down the login session.&rdquo; (Mounts, limits, logging, environment.)</td>
+      </tr>
+  </tbody>
+</table>
+<p>These are <em>separate concerns</em>. A Kerberos PAM module handles <code>auth</code> (check ticket) and maybe <code>session</code> (refresh ticket), but doesn&rsquo;t care about <code>account</code> (LDAP might). A pam_time module handles <code>account</code> (deny login outside work hours) but says nothing about <code>auth</code>. Each management group is configured independently.</p>
+<p>For each group, an application can run <em>a stack of modules in order</em>. This is the chain: each module returns a success/failure, and control flags determine whether the chain continues, aborts, overrides.</p>
+<p>When <code>sshd</code> authenticates you, it makes four PAM calls in sequence (roughly):</p>
+<pre tabindex="0"><code>pam_authenticate(handle)       → runs the &#39;auth&#39; stack
+pam_acct_mgmt(handle)          → runs the &#39;account&#39; stack
+pam_chauthtok(handle)          → (only if password expired, runs &#39;password&#39; stack)
+pam_open_session(handle)       → runs the &#39;session&#39; stack at session start
+pam_close_session(handle)      → runs the &#39;session&#39; stack at session end
+</code></pre><p>Same four calls for every PAM app. What the calls <em>do</em> is whatever the config file for that application says.</p>
+<h2 id="config-file-anatomy">Config file anatomy<a hidden class="anchor" aria-hidden="true" href="#config-file-anatomy">#</a></h2>
+<p>Per-application config lives in <code>/etc/pam.d/&lt;application-name&gt;</code>. On modern distros, <code>/etc/pam.conf</code> (the monolithic old form) isn&rsquo;t used; it&rsquo;s per-file under <code>/etc/pam.d/</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>ls /etc/pam.d/
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># chpasswd          gnome-screensaver  polkit-1   sshd       systemd-user</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># chsh              gnome-shell        postlogin  su         ...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># fingerprint-auth  login              remote     sudo       ...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># gdm-password      passwd             runuser    system-auth</span>
+</span></span></code></pre></div><p>Each file is a list of lines, one rule per line. The format:</p>
+<pre tabindex="0"><code>&lt;group&gt;  &lt;control&gt;  &lt;module&gt;  [module-args...]
+</code></pre><p>Example, simplified <code>/etc/pam.d/sshd</code>:</p>
+<pre tabindex="0"><code>auth       substack     password-auth
+auth       include      postlogin
+account    required     pam_nologin.so
+account    include      password-auth
+password   include      password-auth
+session    required     pam_selinux.so close
+session    required     pam_loginuid.so
+session    required     pam_selinux.so open env_params
+session    required     pam_namespace.so
+session    optional     pam_keyinit.so force revoke
+session    include      password-auth
+session    include      postlogin
+</code></pre><p>Four groups, each with its own stack of rules.</p>
+<ul>
+<li><code>&lt;group&gt;</code> is <code>auth</code>, <code>account</code>, <code>password</code>, or <code>session</code>.</li>
+<li><code>&lt;control&gt;</code> governs what happens on module success/failure (next section).</li>
+<li><code>&lt;module&gt;</code> is a <code>.so</code> file, looked up in <code>/lib64/security/</code> (or <code>/lib/x86_64-linux-gnu/security/</code>).</li>
+<li><code>[args...]</code> are passed to the module.</li>
+</ul>
+<p>The <code>include</code> and <code>substack</code> directives let you pull in other config files as chain fragments — that&rsquo;s how you get shared auth policy across many apps. <code>/etc/pam.d/password-auth</code> is typically <em>the</em> file that defines the real auth logic, and every app that wants standard behavior just <code>include</code>s it.</p>
+<p>On Fedora, the main shared files are:</p>
+<ul>
+<li><strong><code>/etc/pam.d/system-auth</code></strong> — used by console/local auth (login, GDM, su).</li>
+<li><strong><code>/etc/pam.d/password-auth</code></strong> — used by network/remote auth (sshd, cockpit).</li>
+<li><strong><code>/etc/pam.d/postlogin</code></strong> — stuff done after successful auth regardless of source (motd, last-login display).</li>
+<li><strong><code>/etc/pam.d/fingerprint-auth</code></strong>, <strong><code>/etc/pam.d/smartcard-auth</code></strong> — specialized pulls.</li>
+</ul>
+<p>Debian/Ubuntu use <code>common-auth</code>, <code>common-account</code>, <code>common-password</code>, <code>common-session</code> instead.</p>
+<p><strong>These shared files are managed by <code>authselect</code></strong> on Fedora (or <code>authconfig</code> on older systems) — a tool that renders them from templates based on which auth scheme you&rsquo;ve picked (local, SSSD, Winbind, etc.). Don&rsquo;t hand-edit <code>system-auth</code> / <code>password-auth</code>; your changes get blown away on next <code>authselect apply-changes</code>. Either write a custom authselect profile or modify the per-app files to bypass the shared include.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>authselect current                      <span style="color:#75715e"># which profile / features are active</span>
+</span></span><span style="display:flex;"><span>authselect list                         <span style="color:#75715e"># available profiles</span>
+</span></span><span style="display:flex;"><span>authselect list-features sssd           <span style="color:#75715e"># features available in a profile</span>
+</span></span></code></pre></div><h2 id="control-flags-how-the-chain-flows">Control flags: how the chain flows<a hidden class="anchor" aria-hidden="true" href="#control-flags-how-the-chain-flows">#</a></h2>
+<p>The control flag is the trickiest part of PAM syntax. It governs how a module&rsquo;s result affects the overall chain.</p>
+<h3 id="the-simple-form-sufficient-for-most-configs">The simple form (sufficient for most configs)<a hidden class="anchor" aria-hidden="true" href="#the-simple-form-sufficient-for-most-configs">#</a></h3>
+<p>Four classical keywords:</p>
+<ul>
+<li><strong><code>required</code></strong> — module must succeed. If it fails, the chain still runs to the end (don&rsquo;t want to leak information about <em>which</em> module failed), but the final answer is fail.</li>
+<li><strong><code>requisite</code></strong> — module must succeed. If it fails, the chain aborts immediately, and the final answer is fail.</li>
+<li><strong><code>sufficient</code></strong> — if the module succeeds and no prior <code>required</code> failed, the chain short-circuits with success. If it fails, no effect — keep trying.</li>
+<li><strong><code>optional</code></strong> — module&rsquo;s result doesn&rsquo;t affect the final answer unless it&rsquo;s the <em>only</em> module in the stack.</li>
+</ul>
+<p>A typical <code>auth</code> stack:</p>
+<pre tabindex="0"><code>auth  required    pam_env.so             # set environment vars
+auth  required    pam_faillock.so preauth # check lockout state
+auth  sufficient  pam_unix.so try_first_pass  # try local password
+auth  sufficient  pam_sss.so              # try SSSD (LDAP/Kerberos)
+auth  required    pam_deny.so             # explicit deny if we got here
+</code></pre><p>Logic: try local password; if it works, succeed (sufficient). Otherwise try SSSD; if it works, succeed. If nothing succeeded, pam_deny forces failure. pam_faillock is <code>required</code> so it always runs (to record the attempt).</p>
+<p><strong><code>required</code> vs <code>requisite</code> distinction:</strong> <code>required</code> failing still runs remaining modules; <code>requisite</code> aborts. Why keep running after failure? To hide <em>which</em> module failed — an attacker can&rsquo;t tell from timing whether the username was wrong or the password was wrong, because the rest of the stack always runs.</p>
+<h3 id="the-extended-form-">The extended form (<code>[...]=...</code>)<a hidden class="anchor" aria-hidden="true" href="#the-extended-form-">#</a></h3>
+<p>Modern PAM supports much finer control:</p>
+<pre tabindex="0"><code>auth [success=1 default=ignore] pam_unix.so nullok
+auth requisite                  pam_deny.so
+auth required                   pam_permit.so
+</code></pre><p>Syntax: <code>[VALUE1=ACTION1 VALUE2=ACTION2 ...]</code>. Module returns a <code>VALUE</code> (success, user_unknown, auth_err, etc.), and the corresponding <code>ACTION</code> fires:</p>
+<ul>
+<li><strong><code>ok</code></strong> — record the result, keep going.</li>
+<li><strong><code>done</code></strong> — record the result, short-circuit to end with success.</li>
+<li><strong><code>bad</code></strong> — record as failure, keep going.</li>
+<li><strong><code>die</code></strong> — record as failure, short-circuit to end with failure.</li>
+<li><strong><code>ignore</code></strong> — don&rsquo;t count this module&rsquo;s result.</li>
+<li><strong><code>reset</code></strong> — reset to a neutral state.</li>
+<li><strong><code>N</code> (a number)</strong> — skip the next N modules.</li>
+</ul>
+<p>So <code>[success=1 default=ignore]</code> means &ldquo;on success, skip the next 1 rule; on anything else, ignore.&rdquo;</p>
+<p>The example above translates to: if <code>pam_unix</code> succeeds, jump past <code>pam_deny</code> to <code>pam_permit</code> (which always succeeds); if <code>pam_unix</code> fails, fall through to <code>pam_deny</code> (which always fails).</p>
+<p>You&rsquo;ll see these in real configs, especially Debian/Ubuntu <code>common-auth</code>. They&rsquo;re more expressive than <code>required</code>/<code>sufficient</code> but harder to read. The classic keywords are equivalent to specific extended forms.</p>
+<h2 id="common-modules">Common modules<a hidden class="anchor" aria-hidden="true" href="#common-modules">#</a></h2>
+<p>A tour of modules you&rsquo;ll encounter.</p>
+<h3 id="authentication-auth">Authentication (<code>auth</code>)<a hidden class="anchor" aria-hidden="true" href="#authentication-auth">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Module</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>pam_unix.so</code></td>
+          <td>Local password check against <code>/etc/shadow</code>. The workhorse.</td>
+      </tr>
+      <tr>
+          <td><code>pam_sss.so</code></td>
+          <td>SSSD — LDAP, Kerberos, FreeIPA, AD.</td>
+      </tr>
+      <tr>
+          <td><code>pam_krb5.so</code></td>
+          <td>Direct Kerberos.</td>
+      </tr>
+      <tr>
+          <td><code>pam_ldap.so</code></td>
+          <td>Direct LDAP (older than SSSD).</td>
+      </tr>
+      <tr>
+          <td><code>pam_winbind.so</code></td>
+          <td>Samba Winbind for AD.</td>
+      </tr>
+      <tr>
+          <td><code>pam_google_authenticator.so</code></td>
+          <td>TOTP.</td>
+      </tr>
+      <tr>
+          <td><code>pam_oath.so</code></td>
+          <td>OATH HOTP/TOTP.</td>
+      </tr>
+      <tr>
+          <td><code>pam_u2f.so</code></td>
+          <td>FIDO U2F / FIDO2 / YubiKey.</td>
+      </tr>
+      <tr>
+          <td><code>pam_fprintd.so</code></td>
+          <td>Fingerprint reader via <code>fprintd</code>.</td>
+      </tr>
+      <tr>
+          <td><code>pam_smartcard.so</code> / <code>pam_pkcs11.so</code></td>
+          <td>Smartcards, PIV.</td>
+      </tr>
+      <tr>
+          <td><code>pam_faillock.so</code></td>
+          <td>Track and lock out failed attempts.</td>
+      </tr>
+      <tr>
+          <td><code>pam_wheel.so</code></td>
+          <td>Restrict access (commonly for <code>su</code>) to members of a group.</td>
+      </tr>
+      <tr>
+          <td><code>pam_rootok.so</code></td>
+          <td>Auto-succeed if calling UID is 0 (why root doesn&rsquo;t need password for <code>su</code>).</td>
+      </tr>
+      <tr>
+          <td><code>pam_nologin.so</code></td>
+          <td>Deny logins if <code>/etc/nologin</code> exists.</td>
+      </tr>
+      <tr>
+          <td><code>pam_deny.so</code></td>
+          <td>Always fail.</td>
+      </tr>
+      <tr>
+          <td><code>pam_permit.so</code></td>
+          <td>Always succeed.</td>
+      </tr>
+      <tr>
+          <td><code>pam_warn.so</code></td>
+          <td>Log a warning; always succeeds.</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="account-account">Account (<code>account</code>)<a hidden class="anchor" aria-hidden="true" href="#account-account">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Module</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>pam_unix.so</code></td>
+          <td>Check password expiration, account disabled state.</td>
+      </tr>
+      <tr>
+          <td><code>pam_access.so</code></td>
+          <td>Rule-based allow/deny by user/host (<code>/etc/security/access.conf</code>).</td>
+      </tr>
+      <tr>
+          <td><code>pam_time.so</code></td>
+          <td>Deny based on time-of-day policy (<code>/etc/security/time.conf</code>).</td>
+      </tr>
+      <tr>
+          <td><code>pam_tally2.so</code> / <code>pam_faillock.so</code></td>
+          <td>Enforce lockout from prior failed attempts.</td>
+      </tr>
+      <tr>
+          <td><code>pam_sss.so</code></td>
+          <td>Defer to SSSD&rsquo;s account checks.</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="password-password">Password (<code>password</code>)<a hidden class="anchor" aria-hidden="true" href="#password-password">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Module</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>pam_unix.so</code></td>
+          <td>Set the local password.</td>
+      </tr>
+      <tr>
+          <td><code>pam_pwquality.so</code> / <code>pam_cracklib.so</code></td>
+          <td>Enforce password strength policy.</td>
+      </tr>
+      <tr>
+          <td><code>pam_pwhistory.so</code></td>
+          <td>Prevent reusing recent passwords.</td>
+      </tr>
+      <tr>
+          <td><code>pam_sss.so</code></td>
+          <td>Change password in directory.</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="session-session">Session (<code>session</code>)<a hidden class="anchor" aria-hidden="true" href="#session-session">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>Module</th>
+          <th>Purpose</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>pam_systemd.so</code></td>
+          <td>Register session with logind (covered in logind guide).</td>
+      </tr>
+      <tr>
+          <td><code>pam_limits.so</code></td>
+          <td>Apply <code>ulimit</code>-style limits from <code>/etc/security/limits.conf</code>.</td>
+      </tr>
+      <tr>
+          <td><code>pam_env.so</code></td>
+          <td>Set environment variables from <code>/etc/security/pam_env.conf</code>.</td>
+      </tr>
+      <tr>
+          <td><code>pam_lastlog.so</code></td>
+          <td>Update <code>/var/log/lastlog</code>, print &ldquo;last login&rdquo; message.</td>
+      </tr>
+      <tr>
+          <td><code>pam_motd.so</code></td>
+          <td>Show the message of the day.</td>
+      </tr>
+      <tr>
+          <td><code>pam_mail.so</code></td>
+          <td>Tell you if you have new mail.</td>
+      </tr>
+      <tr>
+          <td><code>pam_mkhomedir.so</code></td>
+          <td>Auto-create home directory on first login.</td>
+      </tr>
+      <tr>
+          <td><code>pam_namespace.so</code></td>
+          <td>Set up polyinstantiated directories (per-user <code>/tmp</code>).</td>
+      </tr>
+      <tr>
+          <td><code>pam_selinux.so</code></td>
+          <td>Transition to user&rsquo;s SELinux context.</td>
+      </tr>
+      <tr>
+          <td><code>pam_keyinit.so</code></td>
+          <td>Initialize kernel keyring session.</td>
+      </tr>
+      <tr>
+          <td><code>pam_loginuid.so</code></td>
+          <td>Set auditable login UID (<code>/proc/self/loginuid</code>).</td>
+      </tr>
+  </tbody>
+</table>
+<p><code>pam_systemd.so</code> is worth highlighting. It&rsquo;s the glue between PAM and logind: when the session stack runs it, it calls <code>CreateSession</code> on logind, which sets up the cgroup scope, allocates <code>/run/user/UID</code>, starts <code>user@UID.service</code> if needed, applies device ACLs based on seat/class. Without <code>pam_systemd.so</code> in your session stack, none of the session-scope machinery happens. Every PAM-aware program that creates user sessions includes it.</p>
+<h3 id="module-args-worth-knowing">Module args worth knowing<a hidden class="anchor" aria-hidden="true" href="#module-args-worth-knowing">#</a></h3>
+<p>Common args that change module behavior:</p>
+<ul>
+<li><code>pam_unix</code>:
+<ul>
+<li><code>try_first_pass</code> — use the password already entered by a previous module.</li>
+<li><code>use_first_pass</code> — same, but fail if no prior password.</li>
+<li><code>nullok</code> — allow empty passwords.</li>
+<li><code>sha512</code> — hash algorithm (usually the default now).</li>
+<li><code>remember=N</code> — keep last N passwords.</li>
+</ul>
+</li>
+<li><code>pam_faillock</code>:
+<ul>
+<li><code>preauth</code> — in the <code>auth</code> stack <em>before</em> the password check; deny if already locked.</li>
+<li><code>authfail</code> — in the <code>auth</code> stack <em>after</em>; count a failure.</li>
+<li><code>authsucc</code> — after success; clear counter.</li>
+<li><code>deny=N</code>, <code>unlock_time=N</code>, <code>even_deny_root</code>.</li>
+</ul>
+</li>
+<li><code>pam_limits</code>:
+<ul>
+<li><code>noaudit</code>, <code>debug</code>, <code>set_all</code>.</li>
+</ul>
+</li>
+<li><code>pam_systemd</code>:
+<ul>
+<li>Usually args-less; it detects the session context automatically.</li>
+</ul>
+</li>
+</ul>
+<h2 id="the-four-stacks-in-action-what-each-phase-does">The four stacks in action: what each phase does<a hidden class="anchor" aria-hidden="true" href="#the-four-stacks-in-action-what-each-phase-does">#</a></h2>
+<p>Let&rsquo;s trace a typical login end to end.</p>
+<h3 id="1-auth--prove-identity">1. <code>auth</code> — prove identity<a hidden class="anchor" aria-hidden="true" href="#1-auth--prove-identity">#</a></h3>
+<pre tabindex="0"><code>auth  required    pam_env.so
+auth  required    pam_faillock.so preauth deny=3 unlock_time=600
+auth  sufficient  pam_unix.so try_first_pass nullok
+auth  [default=die] pam_faillock.so authfail
+auth  sufficient  pam_sss.so use_first_pass
+auth  required    pam_deny.so
+</code></pre><p>Logic: set env. Check lockout state (deny if already locked). Try local password; if it works, short-circuit to success. If local failed, count the failure for faillock; then try SSSD. If neither worked, pam_deny forces failure.</p>
+<p><code>pam_unix</code> on success also clears the faillock counter (via the <code>authsucc</code> module in some configs).</p>
+<h3 id="2-account--is-this-account-usable">2. <code>account</code> — is this account usable?<a hidden class="anchor" aria-hidden="true" href="#2-account--is-this-account-usable">#</a></h3>
+<pre tabindex="0"><code>account  required  pam_nologin.so
+account  required  pam_faillock.so
+account  required  pam_unix.so
+account  required  pam_access.so
+account  sufficient pam_localuser.so
+account  required  pam_sss.so
+</code></pre><p>Checks: is <code>/etc/nologin</code> present (deny all non-root). Is the account faillocked. Does the local account exist and is it not expired. Does access.conf allow this user from this origin. If local user, pass. Otherwise check SSSD&rsquo;s account policy (LDAP posixAccount attributes, Kerberos policy).</p>
+<h3 id="3-password--credential-change-only-invoked-for-passwd-or-expiry">3. <code>password</code> — credential change (only invoked for passwd or expiry)<a hidden class="anchor" aria-hidden="true" href="#3-password--credential-change-only-invoked-for-passwd-or-expiry">#</a></h3>
+<pre tabindex="0"><code>password  requisite  pam_pwquality.so retry=3
+password  sufficient pam_unix.so use_authtok sha512 shadow remember=5
+password  sufficient pam_sss.so use_authtok
+password  required   pam_deny.so
+</code></pre><p>Quality check on the new password. Set it in local shadow; if this is a directory user, set it in the directory.</p>
+<h3 id="4-session--build-and-tear-down">4. <code>session</code> — build and tear down<a hidden class="anchor" aria-hidden="true" href="#4-session--build-and-tear-down">#</a></h3>
+<pre tabindex="0"><code>session  required  pam_selinux.so close
+session  required  pam_loginuid.so
+session  required  pam_selinux.so open
+session  optional  pam_keyinit.so force revoke
+session  required  pam_limits.so
+session  optional  pam_systemd.so
+session  optional  pam_lastlog.so silent
+session  optional  pam_mail.so standard
+session  required  pam_unix.so
+</code></pre><p>This runs at session start (<code>pam_open_session</code>) and in reverse at end (<code>pam_close_session</code>). pam_systemd registers with logind. pam_limits reads limits.conf and applies rlimits. pam_lastlog updates and displays. pam_selinux sets up the process&rsquo;s SELinux context.</p>
+<h2 id="hands-on-inspect-and-test">Hands-on: inspect and test<a hidden class="anchor" aria-hidden="true" href="#hands-on-inspect-and-test">#</a></h2>
+<h3 id="see-what-an-app-uses">See what an app uses<a hidden class="anchor" aria-hidden="true" href="#see-what-an-app-uses">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>cat /etc/pam.d/sshd
+</span></span><span style="display:flex;"><span>cat /etc/pam.d/sudo
+</span></span><span style="display:flex;"><span>cat /etc/pam.d/system-auth
+</span></span></code></pre></div><h3 id="follow-includes">Follow includes<a hidden class="anchor" aria-hidden="true" href="#follow-includes">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Print every rule involved in sshd auth:</span>
+</span></span><span style="display:flex;"><span>grep -r <span style="color:#e6db74">&#34;^auth&#34;</span> /etc/pam.d/ | grep -E <span style="color:#e6db74">&#34;(sshd|password-auth|postlogin)&#34;</span>
+</span></span></code></pre></div><h3 id="watch-pam-live">Watch PAM live<a hidden class="anchor" aria-hidden="true" href="#watch-pam-live">#</a></h3>
+<p>PAM operations log to the journal via syslog. For verbose output, enable debug:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Temporarily enable PAM debug:</span>
+</span></span><span style="display:flex;"><span>sudo sh -c <span style="color:#e6db74">&#39;echo &#34;*.* /var/log/pam_debug.log&#34; &gt; /etc/rsyslog.d/90-pamdebug.conf&#39;</span>
+</span></span><span style="display:flex;"><span>sudo systemctl restart rsyslog
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or just watch authpriv:</span>
+</span></span><span style="display:flex;"><span>sudo journalctl -f _TRANSPORT<span style="color:#f92672">=</span>syslog SYSLOG_FACILITY<span style="color:#f92672">=</span><span style="color:#ae81ff">10</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># auth facility = 4, authpriv = 10</span>
+</span></span></code></pre></div><p>Many modules support a <code>debug</code> argument — add it to see diagnostic output in the journal.</p>
+<h3 id="list-installed-modules">List installed modules<a hidden class="anchor" aria-hidden="true" href="#list-installed-modules">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>ls /lib64/security/                     <span style="color:#75715e"># Fedora / RHEL</span>
+</span></span><span style="display:flex;"><span>ls /lib/x86_64-linux-gnu/security/      <span style="color:#75715e"># Debian / Ubuntu</span>
+</span></span></code></pre></div><h3 id="read-a-modules-man-page">Read a module&rsquo;s man page<a hidden class="anchor" aria-hidden="true" href="#read-a-modules-man-page">#</a></h3>
+<p>Almost every module has one:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>man pam_unix
+</span></span><span style="display:flex;"><span>man pam_systemd
+</span></span><span style="display:flex;"><span>man pam_faillock
+</span></span><span style="display:flex;"><span>man pam_limits
+</span></span></code></pre></div><p>These are the best reference. Short, complete, list every argument.</p>
+<h3 id="pamtester--interactively-exercise-pam"><code>pamtester</code> — interactively exercise PAM<a hidden class="anchor" aria-hidden="true" href="#pamtester--interactively-exercise-pam">#</a></h3>
+<p><code>pamtester</code> (package <code>pamtester</code> on Fedora/Debian) lets you run a PAM stack without having the real application. Invaluable for testing config changes.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Test the &#39;login&#39; stack for authentication of user zl:</span>
+</span></span><span style="display:flex;"><span>pamtester login zl authenticate
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Test multiple operations:</span>
+</span></span><span style="display:flex;"><span>pamtester login zl authenticate acct_mgmt open_session close_session
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Verbose:</span>
+</span></span><span style="display:flex;"><span>pamtester -v sshd $USER authenticate
+</span></span></code></pre></div><p>Change a config file, re-run pamtester, see if it behaves as expected. Much faster than constantly SSHing or logging in.</p>
+<h3 id="check-account-lockout-state">Check account lockout state<a hidden class="anchor" aria-hidden="true" href="#check-account-lockout-state">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>faillock --user zl                      <span style="color:#75715e"># see recent failures and lock state</span>
+</span></span><span style="display:flex;"><span>faillock --user zl --reset              <span style="color:#75715e"># clear</span>
+</span></span></code></pre></div><h2 id="tutorial-add-fido2--yubikey-to-sudo">Tutorial: add FIDO2 / YubiKey to sudo<a hidden class="anchor" aria-hidden="true" href="#tutorial-add-fido2--yubikey-to-sudo">#</a></h2>
+<p>A concrete customization. Goal: <code>sudo</code> should accept either your password <em>or</em> a YubiKey touch.</p>
+<h3 id="1-install-the-module">1. Install the module<a hidden class="anchor" aria-hidden="true" href="#1-install-the-module">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo dnf install pam-u2f
+</span></span></code></pre></div><h3 id="2-register-your-key">2. Register your key<a hidden class="anchor" aria-hidden="true" href="#2-register-your-key">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>mkdir -p ~/.config/Yubico
+</span></span><span style="display:flex;"><span>pamu2fcfg &gt; ~/.config/Yubico/u2f_keys   <span style="color:#75715e"># touch the key when prompted</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Add more keys by appending:</span>
+</span></span><span style="display:flex;"><span>pamu2fcfg &gt;&gt; ~/.config/Yubico/u2f_keys
+</span></span></code></pre></div><h3 id="3-edit-etcpamdsudo">3. Edit <code>/etc/pam.d/sudo</code><a hidden class="anchor" aria-hidden="true" href="#3-edit-etcpamdsudo">#</a></h3>
+<p>Default:</p>
+<pre tabindex="0"><code>auth       include      system-auth
+account    include      system-auth
+password   include      system-auth
+session    include      system-auth
+</code></pre><p>Change to:</p>
+<pre tabindex="0"><code>auth       sufficient   pam_u2f.so cue
+auth       include      system-auth
+account    include      system-auth
+password   include      system-auth
+session    include      system-auth
+</code></pre><p>Logic: try U2F first; on success, bypass the rest of auth (sufficient). On failure (or no key present), fall through to system-auth (password).</p>
+<p><code>cue</code> makes the module print &ldquo;Please touch the device.&rdquo; when waiting.</p>
+<h3 id="4-test">4. Test<a hidden class="anchor" aria-hidden="true" href="#4-test">#</a></h3>
+<p>In a <em>new</em> terminal (don&rsquo;t lose your existing sudo-authenticated terminal in case of misconfig):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo -K    <span style="color:#75715e"># reset sudo&#39;s cached auth</span>
+</span></span><span style="display:flex;"><span>sudo echo hi
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Should prompt to touch key. Touch it. &#34;hi&#34; should print.</span>
+</span></span></code></pre></div><p>If it&rsquo;s broken: check <code>journalctl -f</code> in your safe terminal. Revert by editing back. Lesson: <strong>always keep a root-authenticated terminal open when editing PAM configs.</strong> A broken PAM config can lock you out of <code>sudo</code>, <code>ssh</code>, and sometimes <code>login</code> entirely.</p>
+<h3 id="5-require-both-password-and-key-instead-of-either">5. Require both password <em>and</em> key (instead of either)<a hidden class="anchor" aria-hidden="true" href="#5-require-both-password-and-key-instead-of-either">#</a></h3>
+<p>Change <code>sufficient</code> to <code>required</code>:</p>
+<pre tabindex="0"><code>auth       required     pam_u2f.so cue
+auth       include      system-auth
+</code></pre><p>Now both must succeed. Order matters: <code>pam_u2f</code> runs first, then system-auth runs regardless (because <code>required</code> doesn&rsquo;t short-circuit). User gets prompted to touch key, then for password.</p>
+<h2 id="things-that-trip-people-up">Things that trip people up<a hidden class="anchor" aria-hidden="true" href="#things-that-trip-people-up">#</a></h2>
+<p><strong>Editing <code>system-auth</code> / <code>password-auth</code> on Fedora.</strong> Don&rsquo;t. They&rsquo;re generated by <code>authselect</code>. Use <code>authselect apply-changes</code> after editing the per-service file (e.g., <code>sshd</code>, <code>sudo</code>) to bypass the include, or create a custom authselect profile. If you&rsquo;ve already edited and authselect overwrote your changes, pull from git history or rebuild.</p>
+<p><strong>Locking yourself out.</strong> Most common ways: misspelling a module name (PAM errors out and denies), writing <code>required</code> where you meant <code>sufficient</code>, breaking the <code>account</code> stack so even correct passwords are denied, introducing a syntax error. <strong>Always keep a privileged shell open during edits.</strong> For SSH: use a second session. For console: switch to another VT with root logged in.</p>
+<p><strong>&ldquo;password required pam_unix.so&rdquo; doesn&rsquo;t mean &ldquo;require password&rdquo; for login.</strong> The <code>password</code> group is for <em>changing</em> credentials, not for <em>verifying</em> them. Verification is <code>auth</code>. New users confuse this weekly.</p>
+<p><strong>Missing <code>pam_systemd</code> in session stack.</strong> No session registered with logind → no <code>/run/user/UID</code> → no user services → user&rsquo;s D-Bus session bus doesn&rsquo;t start correctly → desktop breaks in subtle ways. Every custom session file should include <code>pam_systemd</code> or an include that does.</p>
+<p><strong><code>pam_env</code> reads only specific files.</strong> <code>/etc/environment</code> and <code>/etc/security/pam_env.conf</code> (or <code>~/.pam_environment</code>, now often disabled for security). Not <code>/etc/profile</code>, not <code>.bashrc</code>. Setting env in bash rc files doesn&rsquo;t affect PAM.</p>
+<p><strong>Module order matters more than you think.</strong> <code>pam_faillock preauth</code> must come <em>before</em> the password-checking module; <code>pam_faillock authfail</code> must come <em>after</em>. Wrong order silently breaks lockout enforcement. Some distros combine these into a single module call with args; check your distro&rsquo;s stock config before adding.</p>
+<p><strong>The <code>try_first_pass</code> / <code>use_first_pass</code> dance.</strong> When stacking multiple <code>auth</code> modules that all want a password, you don&rsquo;t want the user prompted multiple times. First module prompts and stores the password in the PAM context; subsequent modules use <code>try_first_pass</code> (try the stored one, prompt if unset) or <code>use_first_pass</code> (use the stored one, fail if unset). If you see users being prompted for their password three times in a row, a module earlier in the stack isn&rsquo;t passing the password along properly.</p>
+<p><strong><code>sufficient</code> + shared stack = surprise.</strong> <code>sufficient</code> short-circuits <em>within</em> the current substack. A <code>sufficient</code> success in an <code>include</code>d file doesn&rsquo;t short-circuit back to the parent unless you use <code>substack</code> instead of <code>include</code>. <code>substack</code> is newer (2006+) and subtly different; if you&rsquo;re seeing unexpected fall-through, the difference is the culprit.</p>
+<p><strong>Headless servers with GUI-oriented PAM configs.</strong> Some modules assume a TTY (fingerprint, GUI prompts). On a serverless SSH login, these either fail gracefully or hang. Test non-interactive paths.</p>
+<p><strong>Per-app vs. system-wide changes.</strong> If you only want to change behavior for one program (e.g., relax password requirements for a specific service user), edit that app&rsquo;s per-service file, not system-auth. Less blast radius.</p>
+<p><strong>PAM and containers.</strong> Containerized services that run <code>su</code> or auth generally have minimal PAM stacks — <code>/etc/pam.d/</code> in the container is what matters, not the host&rsquo;s. Containers that don&rsquo;t install <code>libpam-modules</code> have broken auth.</p>
+<p><strong>Kerberos ticket refresh</strong> — <code>pam_krb5</code> needs to run in both <code>auth</code> and <code>session</code> stacks. Auth gets the ticket; session refreshes it. Missing the session step means tickets expire during the user&rsquo;s session.</p>
+<p><strong>Password policy not being enforced.</strong> <code>pam_pwquality</code> / <code>pam_cracklib</code> is in the <code>password</code> stack. If users aren&rsquo;t running <code>passwd</code> (because passwords come from LDAP/AD), the policy in your local PAM config doesn&rsquo;t matter; directory-side policy does.</p>
+<h2 id="security-considerations">Security considerations<a hidden class="anchor" aria-hidden="true" href="#security-considerations">#</a></h2>
+<p>A broken PAM config is a security hole. A few principles:</p>
+<p><strong>Fail closed.</strong> End every stack (<code>auth</code>, <code>account</code>) with <code>pam_deny.so</code> or <code>pam_unix.so required</code> as a backstop. If you removed a terminal <code>pam_deny</code>, make sure the last module in the stack is <code>required</code>, so an empty stack doesn&rsquo;t accidentally succeed.</p>
+<p><strong>Don&rsquo;t use <code>nullok</code> unless you mean it.</strong> <code>pam_unix.so nullok</code> allows empty passwords. This is rarely what you want on real systems. Audit your configs for it.</p>
+<p><strong>Don&rsquo;t skip <code>pam_faillock</code> (or equivalent).</strong> Without it, brute-force attempts against auth have no rate limit.</p>
+<p><strong>Modules run as the user who invoked the app.</strong> Well, mostly. <code>login</code> and <code>sshd</code> start as root and run PAM as root; they drop privilege after. Apps that are <em>not</em> setuid (e.g., <code>passwd</code> in some configs) run as the user, so modules requiring root access (like pam_unix reading <code>/etc/shadow</code>) use helper binaries.</p>
+<p><strong>PAM config files are root-owned, 0644.</strong> Anyone can read them, including service definitions. Passwords, keys, etc. should <em>never</em> appear in PAM config; use separate files in <code>/etc/security/</code> with restrictive permissions for module data.</p>
+<p><strong>Audit logs.</strong> <code>pam_loginuid.so</code> sets the immutable &ldquo;loginuid&rdquo; that auditd uses to track actions back to the originating login session even across <code>su</code>, <code>sudo</code>. It&rsquo;s in session stacks for a reason; don&rsquo;t remove it.</p>
+<h2 id="how-pam-fits-with-everything-else">How PAM fits with everything else<a hidden class="anchor" aria-hidden="true" href="#how-pam-fits-with-everything-else">#</a></h2>
+<ul>
+<li>
+<p><strong>vs. NSS (Name Service Switch).</strong> Distinct layers, often confused. <strong>NSS</strong> answers &ldquo;who is user zl? what&rsquo;s their UID, home dir, shell?&rdquo; via <code>/etc/nsswitch.conf</code> and modules like <code>nss_files</code>, <code>nss_sss</code>, <code>nss_ldap</code>. <strong>PAM</strong> answers &ldquo;can user zl log in right now?&rdquo;. Both modules often share backends (SSSD does both, via pam_sss + nss_sss), but they&rsquo;re independent. A user must exist in NSS <em>and</em> pass PAM&rsquo;s auth stack to log in.</p>
+</li>
+<li>
+<p><strong>vs. logind.</strong> PAM&rsquo;s session stack calls logind via pam_systemd. Logind then owns the session lifecycle. PAM does the auth; logind does session tracking.</p>
+</li>
+<li>
+<p><strong>vs. polkit.</strong> PAM is for login-time authentication. polkit is for runtime authorization of privileged operations by already-logged-in users. polkit actually calls PAM when it needs to verify a password in its auth dialog — so they stack: polkit asks &ldquo;can this user do X?&rdquo;; if answer requires credentials, polkit runs a PAM stack to verify them.</p>
+</li>
+<li>
+<p><strong>vs. sudo.</strong> <code>sudo</code> is a PAM client. <code>/etc/pam.d/sudo</code> defines what auth it requires. Independently, <code>/etc/sudoers</code> defines <em>which commands</em> a user may run. Authentication via PAM; authorization via sudoers. Both must pass.</p>
+</li>
+<li>
+<p><strong>vs. SSSD.</strong> SSSD is a daemon that centralizes LDAP/Kerberos/AD integration. PAM talks to SSSD via <code>pam_sss.so</code>; NSS talks to SSSD via <code>nss_sss.so</code>. SSSD caches credentials, handles offline login, manages Kerberos tickets. It&rsquo;s the modern replacement for direct <code>pam_ldap</code> / <code>pam_krb5</code> stacks.</p>
+</li>
+<li>
+<p><strong>vs. SSH keys.</strong> Critically: <strong>SSH key authentication bypasses the PAM <code>auth</code> stack.</strong> If <code>PubkeyAuthentication yes</code> in <code>sshd_config</code> and your key matches, sshd does not run the auth stack. It <em>does</em> still run the <code>account</code> and <code>session</code> stacks (so pam_nologin, pam_access, pam_systemd, pam_limits all apply). This means: &ldquo;restrict sshd auth via PAM&rdquo; doesn&rsquo;t restrict key-based logins. Use <code>AllowUsers</code>, <code>AuthorizedKeysCommand</code>, or <code>UsePAM yes</code> with extra <code>account</code> checks for that.</p>
+</li>
+<li>
+<p><strong>vs. the kernel.</strong> PAM is entirely userspace. The kernel has its own unrelated auth concepts (capabilities, credentials, keyrings, LSMs), which are the layer below PAM&rsquo;s UID/GID model.</p>
+</li>
+</ul>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Config files</span>
+</span></span><span style="display:flex;"><span>/etc/pam.d/&lt;app&gt;                    <span style="color:#75715e"># per-application stack</span>
+</span></span><span style="display:flex;"><span>/etc/pam.d/system-auth              <span style="color:#75715e"># shared, local auth (Fedora)</span>
+</span></span><span style="display:flex;"><span>/etc/pam.d/password-auth            <span style="color:#75715e"># shared, network auth (Fedora)</span>
+</span></span><span style="display:flex;"><span>/etc/pam.d/common-*                 <span style="color:#75715e"># Debian/Ubuntu equivalents</span>
+</span></span><span style="display:flex;"><span>/etc/security/*.conf                <span style="color:#75715e"># module data files (limits, time, access, env)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Management groups</span>
+</span></span><span style="display:flex;"><span>auth      <span style="color:#75715e"># verify identity</span>
+</span></span><span style="display:flex;"><span>account   <span style="color:#75715e"># is account usable</span>
+</span></span><span style="display:flex;"><span>password  <span style="color:#75715e"># change credentials</span>
+</span></span><span style="display:flex;"><span>session   <span style="color:#75715e"># set up / tear down session</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Control flags (classic)</span>
+</span></span><span style="display:flex;"><span>required    <span style="color:#75715e"># must succeed; keep running on fail</span>
+</span></span><span style="display:flex;"><span>requisite   <span style="color:#75715e"># must succeed; abort on fail</span>
+</span></span><span style="display:flex;"><span>sufficient  <span style="color:#75715e"># success short-circuits to end</span>
+</span></span><span style="display:flex;"><span>optional    <span style="color:#75715e"># result ignored unless only module</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Authselect (Fedora)</span>
+</span></span><span style="display:flex;"><span>authselect current
+</span></span><span style="display:flex;"><span>authselect list
+</span></span><span style="display:flex;"><span>sudo authselect <span style="color:#66d9ef">select</span> sssd with-mkhomedir
+</span></span><span style="display:flex;"><span>sudo authselect apply-changes
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Inspect</span>
+</span></span><span style="display:flex;"><span>ls /lib64/security/                 <span style="color:#75715e"># installed modules</span>
+</span></span><span style="display:flex;"><span>man pam_&lt;module&gt;                    <span style="color:#75715e"># per-module docs</span>
+</span></span><span style="display:flex;"><span>faillock --user zl                  <span style="color:#75715e"># lockout state</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Test</span>
+</span></span><span style="display:flex;"><span>sudo dnf install pamtester
+</span></span><span style="display:flex;"><span>pamtester -v &lt;service&gt; &lt;user&gt; authenticate
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Debug logs</span>
+</span></span><span style="display:flex;"><span>sudo journalctl -f SYSLOG_FACILITY<span style="color:#f92672">=</span><span style="color:#ae81ff">10</span>       <span style="color:#75715e"># authpriv</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Many modules accept &#39;debug&#39; argument for extra logging</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Common modules</span>
+</span></span><span style="display:flex;"><span>pam_unix       pam_sss        pam_systemd     pam_faillock
+</span></span><span style="display:flex;"><span>pam_limits     pam_env        pam_nologin     pam_access
+</span></span><span style="display:flex;"><span>pam_u2f        pam_pwquality  pam_time        pam_deny
+</span></span></code></pre></div><h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man 8 pam</code></strong> — the overview.</li>
+<li><strong><code>man 5 pam.conf</code></strong> — config syntax reference. The authoritative source for control flag semantics, both classic and extended forms.</li>
+<li><strong><code>man 7 PAM</code></strong> — introduction.</li>
+<li><strong>Per-module man pages.</strong> <code>man pam_unix</code>, <code>man pam_faillock</code>, etc. These are where the real documentation is.</li>
+<li><strong>The Linux-PAM Application Developer&rsquo;s Guide</strong> — online at <code>http://www.linux-pam.org/Linux-PAM-html/</code>. Verbose, but covers every return code and module call.</li>
+<li><strong><code>/etc/pam.d/</code> on your system</strong> — reading real configs teaches a lot.</li>
+<li><strong>Red Hat / Fedora&rsquo;s <code>authselect</code> docs</strong> — for anything touching the Fedora-managed shared stacks.</li>
+</ul>
+<p>The mental model to carry: <strong>PAM is a system-wide framework where authenticating programs delegate four distinct concerns — identity verification, account usability, credential change, and session setup/teardown — to a chain of pluggable modules, configured per-application in <code>/etc/pam.d/</code>, so that every auth-aware program gains new auth capabilities (Kerberos, FIDO2, lockout tracking, audit logging) just by adjusting the config.</strong> Once the four-groups idea and the control-flag semantics click, PAM configs stop looking like arcana and become what they are: small, declarative chains that compose well. And once you know which modules exist, extending your system&rsquo;s auth — fingerprint, YubiKey, time-of-day restrictions, SSO — is a matter of dropping a line into the right <code>/etc/pam.d/</code> file and testing with <code>pamtester</code>.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/procfs/">
+    <small>← Previous</small>
+    <span>Procfs</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/polkit/">
+    <small>Next →</small>
+    <span>Polkit</span>
+  </a></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

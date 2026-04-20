@@ -1,0 +1,45 @@
+:root {
+    --main-width: 900px;
+}
+
+.chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    padding: 1rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.chapter-nav a {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    padding: 0.5rem 0.75rem;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.chapter-nav a:hover {
+    background: var(--tertiary);
+}
+
+.chapter-nav-next {
+    text-align: right;
+    align-items: flex-end;
+}
+
+.chapter-nav small {
+    opacity: 0.6;
+    font-size: 0.8em;
+}
+
+.chapter-nav span {
+    font-weight: 600;
+}
+
+.chapter-nav-spacer {
+    flex: 1 1 0;
+}

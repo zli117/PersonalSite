@@ -1,0 +1,33 @@
+{{- /* Chapter navigation for a series.
+       Renders nothing unless the current page's CurrentSection has
+       `series: true` in its _index.md. Chapters are ordered by `weight`. */ -}}
+{{- if .CurrentSection.Params.series -}}
+{{- $chapters := .CurrentSection.RegularPages.ByWeight -}}
+{{- $total := len $chapters -}}
+{{- $curIdx := -1 -}}
+{{- range $i, $p := $chapters -}}
+  {{- if eq $p.RelPermalink $.RelPermalink -}}{{- $curIdx = $i -}}{{- end -}}
+{{- end -}}
+{{- if ge $curIdx 0 -}}
+<nav class="chapter-nav">
+  {{- if gt $curIdx 0 -}}
+  {{- $prev := index $chapters (sub $curIdx 1) -}}
+  <a class="chapter-nav-prev" href="{{ $prev.RelPermalink }}">
+    <small>← Previous</small>
+    <span>{{ $prev.Title }}</span>
+  </a>
+  {{- else -}}
+  <span class="chapter-nav-spacer"></span>
+  {{- end -}}
+  {{- if lt (add $curIdx 1) $total -}}
+  {{- $next := index $chapters (add $curIdx 1) -}}
+  <a class="chapter-nav-next" href="{{ $next.RelPermalink }}">
+    <small>Next →</small>
+    <span>{{ $next.Title }}</span>
+  </a>
+  {{- else -}}
+  <span class="chapter-nav-spacer"></span>
+  {{- end -}}
+</nav>
+{{- end -}}
+{{- end -}}

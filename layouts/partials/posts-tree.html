@@ -1,0 +1,20 @@
+{{- /* Recursive section tree.
+       Expects a dict: { "section": <Page>, "depth": <int> }
+       depth 2 → <h2>, 3 → <h3>, capped at 6. */ -}}
+{{- $s := .section }}
+{{- $d := .depth | default 2 }}
+{{- if gt $d 6 }}{{ $d = 6 }}{{ end }}
+{{- $openTag := printf "<h%d><a href=%q>%s</a></h%d>" $d $s.RelPermalink $s.Title $d }}
+
+<section class="post-section" style="margin-top:1.5rem;">
+  {{ $openTag | safeHTML }}
+  {{- with $s.Params.summary }}
+  <p class="post-description" style="margin-top:-0.25rem;">{{ . | markdownify }}</p>
+  {{- end }}
+  {{- range $s.RegularPages }}
+  {{- partial "post-card.html" . }}
+  {{- end }}
+  {{- range $s.Sections.ByWeight }}
+  {{- partial "posts-tree.html" (dict "section" . "depth" (add $d 1)) }}
+  {{- end }}
+</section>

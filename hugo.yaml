@@ -4,10 +4,12 @@ title: 'Zonglin Li'
 theme: 'PaperMod'
 
 params:
+  author: "Zonglin Li"
+
   profileMode:
     enabled: true
     title: "Works in Progress"
-    subtitle: "I write about AGI, AI safety, and side projects. Mostly thinking out loud — you're welcome to think along."
+    subtitle: "I write about AI, desktop Linux, and side projects. Mostly thinking out loud — you're welcome to think along."
 
   socialIcons: 
     - name: "github"
@@ -21,15 +23,12 @@ params:
 
 menu:
   main:
-    - name: 'About'
-      url: '/about/'
-      weight: 1
+    # - name: 'About'
+    #   url: '/about/'
+    #   weight: 1
     - name: 'Posts'
       url: '/posts/'
       weight: 2
-    - name: 'Projects'
-      url: '/projects/'
-      weight: 3
 
 outputs:
   home:

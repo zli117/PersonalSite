@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Logind | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="What logind is and why it exists
+Multi-user Unix assumed a simple world: users ssh or telnet in, get a shell, interact over that one session, log out. No graphics, no hot-plugging devices, no competing claims on hardware. The classical utmp/wtmp files tracked &ldquo;who&rsquo;s logged in&rdquo; and that was about it.
+The desktop era broke all of this. Consider the problems:
+
+
+Multiple users on one machine simultaneously. Alice is logged in at the physical console in a graphical session; Bob SSHes in; Charlie switches to VT 3 and starts another graphical session. Who owns the audio device right now? Who can mount the USB stick that just got plugged in? Who&rsquo;s allowed to shut the machine down?">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/logind/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/logind/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Logind
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 21:16:07 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/network_manager/">
+    <small>← Previous</small>
+    <span>NetworkManager: a practical guide</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/wayland/">
+    <small>Next →</small>
+    <span>Wayland</span>
+  </a></nav>
+  <div class="post-content"><h2 id="what-logind-is-and-why-it-exists">What logind is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-logind-is-and-why-it-exists">#</a></h2>
+<p>Multi-user Unix assumed a simple world: users <code>ssh</code> or <code>telnet</code> in, get a shell, interact over that one session, log out. No graphics, no hot-plugging devices, no competing claims on hardware. The classical <code>utmp</code>/<code>wtmp</code> files tracked &ldquo;who&rsquo;s logged in&rdquo; and that was about it.</p>
+<p>The desktop era broke all of this. Consider the problems:</p>
+<ul>
+<li>
+<p><strong>Multiple users on one machine simultaneously.</strong> Alice is logged in at the physical console in a graphical session; Bob SSHes in; Charlie switches to VT 3 and starts another graphical session. Who owns the audio device right now? Who can mount the USB stick that just got plugged in? Who&rsquo;s allowed to shut the machine down?</p>
+</li>
+<li>
+<p><strong>Fast user switching.</strong> Alice locks her session; Bob logs in graphically; Bob uses the machine; Alice comes back and unlocks. The GPU, keyboard, mouse, audio have to be handed back and forth.</p>
+</li>
+<li>
+<p><strong>Session-scoped resources.</strong> When Alice logs out, every process she started should die (no forgotten daemons clinging on). Her X server, her <code>gnome-shell</code>, her background syncing daemon, her Firefox — all gone. But her systemd user services, cron jobs, and SSH agent should persist correctly based on policy.</p>
+</li>
+<li>
+<p><strong>Power management decisions.</strong> &ldquo;Suspend the machine&rdquo; is a privileged operation. Should any logged-in user be allowed to do it? Only the active user? What if there are multiple active users?</p>
+</li>
+<li>
+<p><strong>Idle and lock state.</strong> Is anyone actually using the machine? Should the screen turn off? Should we go to sleep?</p>
+</li>
+<li>
+<p><strong>Hardware access for GUI.</strong> The graphical session needs access to <code>/dev/dri/card0</code>, <code>/dev/input/event*</code>, <code>/dev/snd/*</code>. The user running it shouldn&rsquo;t be root. How does unprivileged Alice get those ACLs when she logs in at the console, and lose them when she switches away?</p>
+</li>
+<li>
+<p><strong>Wayland, which has no network transparency.</strong> The compositor needs to know &ldquo;is this user on the active seat right now or not&rdquo; to decide whether to even try to open the display.</p>
+</li>
+</ul>
+<p><strong><code>systemd-logind</code></strong> is the daemon that owns all of this. Started in 2011 as part of systemd, it tracks users, sessions, and seats, coordinates access to hardware, governs power operations, and exposes everything on D-Bus so other components can cooperate. Before logind, this landscape was a jumble of ConsoleKit, PolicyKit, pam_console, pam_foreground, udev ACLs, and desktop-specific hacks. logind consolidated the lot.</p>
+<p>On any modern systemd-based Linux, logind is running whether you notice it or not. It&rsquo;s part of the plumbing under GDM/SDDM, under <code>su</code>/<code>sudo</code>, under SSH&rsquo;s session setup, under your Wayland compositor, under GNOME Shell&rsquo;s &ldquo;suspend&rdquo; button.</p>
+<h2 id="the-three-core-concepts-user-session-seat">The three core concepts: user, session, seat<a hidden class="anchor" aria-hidden="true" href="#the-three-core-concepts-user-session-seat">#</a></h2>
+<p>logind&rsquo;s model is three nested objects. Getting these distinct in your head is most of understanding logind.</p>
+<h3 id="user">User<a hidden class="anchor" aria-hidden="true" href="#user">#</a></h3>
+<p>A <strong>user</strong> is a logged-in Linux user, identified by UID. When the first session for a user opens, logind creates a user-scope state: spawns <code>user@UID.service</code> (the user&rsquo;s systemd manager, running the user-level units), allocates runtime resources like <code>/run/user/UID</code>, applies user-specific policy.</p>
+<p>When the <em>last</em> session for that user closes, logind tears this down — unless <strong>lingering</strong> is enabled for the user, in which case <code>user@UID.service</code> keeps running and their services persist.</p>
+<p>Commands:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl list-users
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   UID USER  LINGER STATE</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#  1000 zl    no     active</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>loginctl show-user zl
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># UID=1000</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># GID=1000</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Name=zl</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Timestamp=...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># RuntimePath=/run/user/1000</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Service=user@1000.service</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Slice=user-1000.slice</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Display=2                       ← the &#34;primary&#34; session for this user</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># State=active</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Sessions=3 2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># IdleHint=no</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>loginctl enable-linger zl         <span style="color:#75715e"># user services persist past logout</span>
+</span></span><span style="display:flex;"><span>loginctl disable-linger zl
+</span></span></code></pre></div><p>Lingering matters for: running user-level services (syncthing, a personal media server, a cron-replacement timer) without staying logged in.</p>
+<h3 id="session">Session<a hidden class="anchor" aria-hidden="true" href="#session">#</a></h3>
+<p>A <strong>session</strong> is one instance of a user being logged in. One user can have many sessions simultaneously (graphical session on seat0, SSH session from a laptop, SSH session from a phone). Each session has a numeric ID, a type, a class, a leader process, and a scope.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl list-sessions
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># SESSION  UID USER  SEAT  TTY</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#       2 1000 zl    seat0 tty2        ← the graphical session</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#       5 1000 zl          pts/0       ← an SSH session</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#       8  501 bob   seat1 tty3        ← another user, another seat</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>loginctl show-session <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Id=2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User=1000</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Name=zl</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Timestamp=...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># VTNr=2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Seat=seat0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># TTY=tty2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Remote=no</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Service=gdm-password</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Leader=1854</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Type=wayland</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Class=user</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Active=yes                    ← currently foregrounded on its seat</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># State=active</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># IdleHint=no</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># LockedHint=no</span>
+</span></span></code></pre></div><p>Fields worth knowing:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Field</th>
+          <th>Meaning</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>Type</code></td>
+          <td><code>tty</code>, <code>x11</code>, <code>wayland</code>, <code>mir</code>, <code>unspecified</code></td>
+      </tr>
+      <tr>
+          <td><code>Class</code></td>
+          <td><code>user</code> (normal), <code>greeter</code> (GDM/SDDM), <code>lock-screen</code>, <code>background</code>, <code>manager</code></td>
+      </tr>
+      <tr>
+          <td><code>State</code></td>
+          <td><code>active</code> (foregrounded on its seat), <code>online</code> (exists but not foregrounded), <code>closing</code></td>
+      </tr>
+      <tr>
+          <td><code>Active</code></td>
+          <td>boolean for &ldquo;this session owns its seat&rsquo;s hardware right now&rdquo;</td>
+      </tr>
+      <tr>
+          <td><code>Remote</code></td>
+          <td><code>yes</code> for SSH, <code>no</code> for local</td>
+      </tr>
+      <tr>
+          <td><code>VTNr</code></td>
+          <td>the virtual terminal number, if any</td>
+      </tr>
+      <tr>
+          <td><code>Leader</code></td>
+          <td>PID of the session&rsquo;s root process (your login shell, your display manager&rsquo;s session spawner, etc.)</td>
+      </tr>
+      <tr>
+          <td><code>Scope</code></td>
+          <td>the systemd scope unit that contains all processes in this session</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Sessions map to cgroup scopes.</strong> Every process spawned in a session lives under <code>session-N.scope</code> under <code>user-UID.slice</code>. When the session ends, logind sends SIGTERM/SIGKILL to the whole scope — that&rsquo;s how &ldquo;log out kills everything you started&rdquo; is reliably implemented. No more hunting for stragglers.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl status session-2.scope
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># session-2.scope - Session 2 of User zl</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#      CGroup: /user.slice/user-1000.slice/session-2.scope</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#              ├─ 1854 gdm-session-worker [pam/gdm-password]</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#              ├─ 1870 /usr/libexec/gnome-session-binary ...</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#              ├─ 1892 /usr/bin/gnome-shell</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#              └─ ... everything started from this session</span>
+</span></span></code></pre></div><h3 id="seat">Seat<a hidden class="anchor" aria-hidden="true" href="#seat">#</a></h3>
+<p>A <strong>seat</strong> is a set of hardware — one keyboard, one mouse, one display, maybe audio devices — representing <em>one physical place</em> where a user can sit down and interact. Almost every laptop and desktop has exactly one seat, named <code>seat0</code>. Multi-seat setups (shared lab computer, multi-head kiosk) have <code>seat1</code>, <code>seat2</code>, etc.</p>
+<p>Seats exist because of the multi-user graphical case. Two users on the same machine, each with their own keyboard/mouse/monitor, plugged into the same chassis — each gets their own seat, and the hardware is partitioned so their inputs and outputs don&rsquo;t cross.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl list-seats
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># SEAT</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># seat0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>loginctl show-seat seat0
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Id=seat0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ActiveSession=2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Sessions=2</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># CanMultiSession=yes</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># CanTTY=yes</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># CanGraphical=yes</span>
+</span></span></code></pre></div><p>At any moment, <strong>one session per seat is active</strong> (the one currently foregrounded on the hardware). Ctrl+Alt+F3 switches VTs, which changes which session is active on <code>seat0</code>. Fast user switching in GNOME similarly switches the active session.</p>
+<p>Devices are assigned to seats via udev tags. By default, all hardware is on <code>seat0</code>. For multi-seat, you tag devices manually:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Pin a specific USB hub&#39;s devices to seat1</span>
+</span></span><span style="display:flex;"><span>loginctl attach seat1 /sys/devices/pci0000:00/0000:00:14.0/usb1/1-3
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># What&#39;s on each seat?</span>
+</span></span><span style="display:flex;"><span>loginctl seat-status seat0
+</span></span></code></pre></div><p>Unless you&rsquo;re building a multi-seat system, you&rsquo;ll only ever see <code>seat0</code>. But the concept matters because <em>session.Active</em> is defined relative to a seat, and seat-tied hardware access is the mechanism for granting the desktop its device ACLs.</p>
+<h2 id="the-lifecycle-in-motion">The lifecycle in motion<a hidden class="anchor" aria-hidden="true" href="#the-lifecycle-in-motion">#</a></h2>
+<p>Here&rsquo;s what happens for the three common login paths.</p>
+<h3 id="graphical-login-at-the-console">Graphical login at the console<a hidden class="anchor" aria-hidden="true" href="#graphical-login-at-the-console">#</a></h3>
+<ol>
+<li>Machine boots. <code>gdm.service</code> starts on <code>graphical.target</code>. GDM spawns a greeter session — a special session with <code>Class=greeter</code> running as the <code>gdm</code> user, running its own Wayland/X compositor.</li>
+<li>You type your password. GDM authenticates via PAM. The PAM stack includes <code>pam_systemd.so</code>, which talks to logind over D-Bus to register a session.</li>
+<li>logind creates <code>session-2.scope</code>, sets up <code>/run/user/1000/</code>, starts <code>user@1000.service</code> if this is your first session, applies the session class (<code>user</code>), binds it to <code>seat0</code>, marks it active.</li>
+<li>logind updates device ACLs: <code>/dev/dri/card0</code>, <code>/dev/input/event*</code>, <code>/dev/snd/*</code> gain ACL entries granting your UID access. Your compositor can now open them.</li>
+<li>GDM spawns your actual session: <code>gnome-session</code>, which in turn launches <code>gnome-shell</code>, a settings daemon, autostart apps. All under <code>session-2.scope</code>.</li>
+<li>Your compositor opens <code>/dev/dri/card0</code>, becomes DRM master for its CRTCs, starts compositing.</li>
+</ol>
+<p>Check with:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl show-session $XDG_SESSION_ID
+</span></span><span style="display:flex;"><span>getfacl /dev/dri/card0        <span style="color:#75715e"># you&#39;ll see &#34;user:1000:rw-&#34;</span>
+</span></span></code></pre></div><h3 id="fast-user-switching">Fast user switching<a hidden class="anchor" aria-hidden="true" href="#fast-user-switching">#</a></h3>
+<p>You click &ldquo;Switch User&rdquo; in GNOME. GDM starts a second greeter session on a different VT. Bob logs in, gets <code>session-8</code> on seat0, <code>Active=yes</code>. Your <code>session-2</code> goes to <code>Active=no</code>, <code>State=online</code>. Device ACLs flip: Bob now has access to <code>/dev/dri/card0</code>, you don&rsquo;t. Your compositor, trying to use the GPU, gets <code>EPERM</code> or loses DRM master gracefully and sits dormant.</p>
+<p>When you switch back (Ctrl+Alt+F2, or via GDM), the reverse happens: your session goes active, Bob&rsquo;s goes online, ACLs flip back, your compositor regains DRM master and resumes.</p>
+<h3 id="ssh-login">SSH login<a hidden class="anchor" aria-hidden="true" href="#ssh-login">#</a></h3>
+<ol>
+<li><code>sshd</code> accepts the connection, authenticates you, sets up the PTY.</li>
+<li><code>pam_systemd.so</code> registers a session with logind. This session has <code>Type=tty</code>, <code>Remote=yes</code>, <code>Seat=</code> (empty — no seat for remote sessions), no VTNr.</li>
+<li>logind still creates a <code>session-N.scope</code> and, if this is your first session, starts <code>user@UID.service</code> and sets up <code>/run/user/UID/</code>.</li>
+<li>Your shell runs under <code>session-N.scope</code>.</li>
+<li>No device ACLs are granted (no seat).</li>
+</ol>
+<p>This means SSHing in and then trying to launch a GUI app doesn&rsquo;t work — you have no seat, no DRI access. It also means your SSH session is still tracked by logind, still has a user slice, still runs user systemd services if any.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># From inside an SSH session:</span>
+</span></span><span style="display:flex;"><span>echo $XDG_SESSION_TYPE      <span style="color:#75715e"># tty</span>
+</span></span><span style="display:flex;"><span>loginctl show-session $XDG_SESSION_ID | grep -E <span style="color:#e6db74">&#39;Remote|Seat&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Seat=                    (empty)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Remote=yes</span>
+</span></span></code></pre></div><h2 id="the-d-bus-interface-how-other-components-talk-to-logind">The D-Bus interface: how other components talk to logind<a hidden class="anchor" aria-hidden="true" href="#the-d-bus-interface-how-other-components-talk-to-logind">#</a></h2>
+<p>logind&rsquo;s power comes from being a D-Bus service that everything else integrates with. Service name: <code>org.freedesktop.login1</code>. Object paths: <code>/org/freedesktop/login1</code> (the manager), <code>/org/freedesktop/login1/session/_2</code> (sessions), <code>/org/freedesktop/login1/user/_1000</code> (users), <code>/org/freedesktop/login1/seat/seat0</code> (seats).</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl tree org.freedesktop.login1
+</span></span><span style="display:flex;"><span>busctl introspect org.freedesktop.login1 /org/freedesktop/login1
+</span></span></code></pre></div><p>Key methods on the Manager interface:</p>
+<ul>
+<li><code>PowerOff</code>, <code>Reboot</code>, <code>Suspend</code>, <code>Hibernate</code>, <code>HybridSleep</code>, <code>SuspendThenHibernate</code> — power operations, with polkit checks.</li>
+<li><code>Lock</code>, <code>Unlock</code>, <code>LockSession</code>, <code>UnlockSession</code> — lock screen coordination.</li>
+<li><code>TerminateSession</code>, <code>TerminateUser</code>, <code>KillSession</code>, <code>KillUser</code> — force-close.</li>
+<li><code>Inhibit</code> — take an <strong>inhibitor lock</strong> (see below).</li>
+<li><code>GetSeat</code>, <code>GetUser</code>, <code>GetSession</code>, <code>ListSeats</code>, <code>ListUsers</code>, <code>ListSessions</code> — introspection.</li>
+<li><code>ActivateSession</code>, <code>ActivateSessionOnSeat</code> — bring a session to the foreground (fast user switching).</li>
+<li><code>SetUserLinger</code> — enable/disable linger.</li>
+<li><code>ScheduleShutdown</code>, <code>CancelScheduledShutdown</code> — delayed poweroff.</li>
+</ul>
+<p>Key signals:</p>
+<ul>
+<li><code>SessionNew</code>, <code>SessionRemoved</code></li>
+<li><code>UserNew</code>, <code>UserRemoved</code></li>
+<li><code>SeatNew</code>, <code>SeatRemoved</code></li>
+<li><code>PrepareForShutdown(bool start)</code> — fires right before the system goes down (and right before it comes back).</li>
+<li><code>PrepareForSleep(bool start)</code> — fires before suspend/resume.</li>
+</ul>
+<p>The signals are how apps integrate. A media player listens for <code>PrepareForSleep(true)</code> and pauses playback. A backup daemon listens for <code>PrepareForShutdown(true)</code> and flushes state. A sync client listens for <code>SessionNew</code> to start syncing when a user logs in.</p>
+<h2 id="inhibitor-locks-the-cooperative-model">Inhibitor locks: the cooperative model<a hidden class="anchor" aria-hidden="true" href="#inhibitor-locks-the-cooperative-model">#</a></h2>
+<p>&ldquo;I&rsquo;m burning a DVD, please don&rsquo;t suspend.&rdquo; &ldquo;I&rsquo;m playing a movie, please don&rsquo;t dim the screen.&rdquo; &ldquo;I&rsquo;m in the middle of a system update, please don&rsquo;t let the user shut down.&rdquo;</p>
+<p>Inhibitor locks are logind&rsquo;s mechanism for this. Any app can take a lock against one or more events:</p>
+<ul>
+<li><code>sleep</code> — prevent suspend/hibernate.</li>
+<li><code>shutdown</code> — prevent poweroff/reboot.</li>
+<li><code>idle</code> — prevent the idle hint from going to true (so screen doesn&rsquo;t blank, session isn&rsquo;t considered idle).</li>
+<li><code>handle-power-key</code>, <code>handle-suspend-key</code>, <code>handle-hibernate-key</code>, <code>handle-lid-switch</code> — prevent the corresponding hardware event from being auto-handled by logind.</li>
+</ul>
+<p>Two lock modes:</p>
+<ul>
+<li><strong><code>block</code></strong> — absolutely prevents the event. An app taking a block lock can veto shutdown or sleep entirely. Requires privilege (usually root or special polkit rule). Used sparingly, typically only by critical services (the package manager during an update).</li>
+<li><strong><code>delay</code></strong> — the event happens anyway, but logind waits up to <code>InhibitDelayMaxSec</code> (5 seconds by default) for the lock holder to do last-minute work. Most apps use delay locks: pause, save state, release the lock.</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemd-inhibit --list
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># WHO              UID USER    PID  COMM            WHAT           WHY                                 MODE</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># NetworkManager   0   root    942  NetworkManager  sleep          NetworkManager needs to turn off... delay</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># GNOME Shell     1000 zl      1902 gnome-shell     handle-power-key:handle-suspend-key... handle   block</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ...</span>
+</span></span></code></pre></div><p>You can take one yourself:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemd-inhibit --what<span style="color:#f92672">=</span>sleep --who<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;me&#34;</span> --why<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;running experiment&#34;</span> sleep <span style="color:#ae81ff">600</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Now the system can&#39;t suspend for 10 minutes.</span>
+</span></span></code></pre></div><p>This is how compositors and media players cooperate with power management without having to fight logind — they say &ldquo;don&rsquo;t suspend while I&rsquo;m busy&rdquo;, release when done, and everything just works.</p>
+<h2 id="power-operations-and-polkit">Power operations and polkit<a hidden class="anchor" aria-hidden="true" href="#power-operations-and-polkit">#</a></h2>
+<p>All the power-affecting methods (<code>PowerOff</code>, <code>Reboot</code>, <code>Suspend</code>, etc.) go through polkit for authorization. Default polkit rules typically allow:</p>
+<ul>
+<li>Any user with an <em>active</em> local session to suspend/hibernate.</li>
+<li>Any user with an active local session to reboot/shutdown <em>if they&rsquo;re the only user logged in</em>.</li>
+<li>Root, or users in specific groups (<code>wheel</code>), to always do these operations.</li>
+</ul>
+<p>Remote SSH sessions are generally denied (no active seat → no &ldquo;active local session&rdquo;).</p>
+<p>When <code>systemctl poweroff</code> runs as an unprivileged user, it calls <code>org.freedesktop.login1.Manager.PowerOff</code>, which hits polkit, which consults rules, which may prompt via polkit agent (GNOME&rsquo;s dialog, <code>pkexec</code> prompt on TTY), which either allows or denies.</p>
+<p>You can see the decision process:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>pkaction --verbose --action-id org.freedesktop.login1.power-off
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># description:       Power off the system</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># message:           Authentication is required to power off the system</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># implicit any:      auth_admin_keep</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># implicit inactive: auth_admin_keep</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># implicit active:   yes                  ← active local user gets it free</span>
+</span></span></code></pre></div><p>When <code>Suspend</code> is called, logind fires <code>PrepareForSleep(true)</code>, waits for all delay inhibitors (up to the timeout), then executes the syscall (<code>echo mem &gt; /sys/power/state</code> or equivalent), and on resume fires <code>PrepareForSleep(false)</code>.</p>
+<h2 id="policy-etcsystemdlogindconf">Policy: <code>/etc/systemd/logind.conf</code><a hidden class="anchor" aria-hidden="true" href="#policy-etcsystemdlogindconf">#</a></h2>
+<p>logind&rsquo;s behavior is configurable. The main knobs:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Login]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandlePowerKey</span><span style="color:#f92672">=</span><span style="color:#e6db74">poweroff         # what to do when the power button is pressed</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandleSuspendKey</span><span style="color:#f92672">=</span><span style="color:#e6db74">suspend</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandleHibernateKey</span><span style="color:#f92672">=</span><span style="color:#e6db74">hibernate</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandleLidSwitch</span><span style="color:#f92672">=</span><span style="color:#e6db74">suspend         # laptop lid closed</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandleLidSwitchExternalPower</span><span style="color:#f92672">=</span><span style="color:#e6db74">suspend</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">HandleLidSwitchDocked</span><span style="color:#f92672">=</span><span style="color:#e6db74">ignore    # lid closed while on a dock</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PowerKeyIgnoreInhibited</span><span style="color:#f92672">=</span><span style="color:#e6db74">no</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">LidSwitchIgnoreInhibited</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">IdleAction</span><span style="color:#f92672">=</span><span style="color:#e6db74">ignore               # what to do when system idle (not per-session!)</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">IdleActionSec</span><span style="color:#f92672">=</span><span style="color:#e6db74">30min</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">InhibitDelayMaxSec</span><span style="color:#f92672">=</span><span style="color:#e6db74">5            # how long to wait for delay inhibitors</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">KillUserProcesses</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes           # kill everything on logout (subject to linger)</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">KillOnlyUsers</span><span style="color:#f92672">=</span>                  <span style="color:#e6db74"># restrict kill to specific users</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">KillExcludeUsers</span><span style="color:#f92672">=</span><span style="color:#e6db74">root</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RuntimeDirectorySize</span><span style="color:#f92672">=</span><span style="color:#e6db74">10%        # /run/user/UID cap</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RuntimeDirectoryInodesMax</span><span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">UserStopDelaySec</span><span style="color:#f92672">=</span><span style="color:#e6db74">10             # grace period after last session before stopping user@.service</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">SessionsMax</span><span style="color:#f92672">=</span><span style="color:#e6db74">8192                # max concurrent sessions</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">InhibitorsMax</span><span style="color:#f92672">=</span><span style="color:#e6db74">8192</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RemoveIPC</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes                   # clean up SysV IPC on user logout</span>
+</span></span></code></pre></div><p>Changes take effect on <code>systemctl restart systemd-logind</code> (which will invalidate existing sessions — don&rsquo;t do this casually on a live desktop).</p>
+<p>A few of these have real consequences:</p>
+<ul>
+<li>
+<p><strong><code>HandleLidSwitch</code></strong> — the difference between &ldquo;laptop sleeps when I close it&rdquo; and &ldquo;laptop runs with lid closed.&rdquo; For a server or a laptop docked to external monitors, you often want <code>ignore</code> or <code>lock</code>.</p>
+</li>
+<li>
+<p><strong><code>KillUserProcesses</code></strong> — historically <code>no</code> on many distros (POSIX said logout shouldn&rsquo;t kill background jobs). systemd flipped this to <code>yes</code> for predictability. If you run <code>nohup</code>-style background tasks, either they need linger, or this needs to be <code>no</code>, or you should just write a proper systemd service.</p>
+</li>
+<li>
+<p><strong><code>RuntimeDirectorySize</code></strong> — <code>/run/user/UID</code> is a tmpfs. Wayland sockets, PulseAudio sockets, D-Bus sockets, lots of little files. If you hit the cap, weird breakage ensues.</p>
+</li>
+<li>
+<p><strong><code>IdleAction</code></strong> — system-wide idle, not per-user idle. Most people leave this off and let the desktop environment handle user idle (screen blank, lock).</p>
+</li>
+</ul>
+<h2 id="loginctl-the-cli"><code>loginctl</code>: the CLI<a hidden class="anchor" aria-hidden="true" href="#loginctl-the-cli">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Overview</span>
+</span></span><span style="display:flex;"><span>loginctl                             <span style="color:#75715e"># same as list-sessions</span>
+</span></span><span style="display:flex;"><span>loginctl list-sessions
+</span></span><span style="display:flex;"><span>loginctl list-users
+</span></span><span style="display:flex;"><span>loginctl list-seats
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Detail</span>
+</span></span><span style="display:flex;"><span>loginctl show-session &lt;id&gt;
+</span></span><span style="display:flex;"><span>loginctl show-user &lt;username-or-uid&gt;
+</span></span><span style="display:flex;"><span>loginctl show-seat &lt;seat&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Session control</span>
+</span></span><span style="display:flex;"><span>loginctl activate &lt;session&gt;          <span style="color:#75715e"># bring to foreground (fast user switching)</span>
+</span></span><span style="display:flex;"><span>loginctl lock-session &lt;session&gt;
+</span></span><span style="display:flex;"><span>loginctl unlock-session &lt;session&gt;
+</span></span><span style="display:flex;"><span>loginctl terminate-session &lt;session&gt;
+</span></span><span style="display:flex;"><span>loginctl kill-session &lt;session&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User control</span>
+</span></span><span style="display:flex;"><span>loginctl terminate-user &lt;user&gt;
+</span></span><span style="display:flex;"><span>loginctl enable-linger &lt;user&gt;
+</span></span><span style="display:flex;"><span>loginctl disable-linger &lt;user&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Seat control</span>
+</span></span><span style="display:flex;"><span>loginctl seat-status &lt;seat&gt;
+</span></span><span style="display:flex;"><span>loginctl attach &lt;seat&gt; &lt;sysfs-path&gt;  <span style="color:#75715e"># assign a device to a seat</span>
+</span></span><span style="display:flex;"><span>loginctl flush-devices               <span style="color:#75715e"># clear all seat assignments</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Power (via logind)</span>
+</span></span><span style="display:flex;"><span>loginctl poweroff
+</span></span><span style="display:flex;"><span>loginctl reboot
+</span></span><span style="display:flex;"><span>loginctl suspend
+</span></span><span style="display:flex;"><span>loginctl hibernate
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User&#39;s currently-logged-in info</span>
+</span></span><span style="display:flex;"><span>loginctl user-status                 <span style="color:#75715e"># your own sessions</span>
+</span></span></code></pre></div><p>One thing that confuses people: <code>loginctl</code> and <code>systemctl</code> both have <code>poweroff</code>, <code>reboot</code>, <code>suspend</code>. They do essentially the same thing — both end up in logind for authorization. <code>systemctl poweroff</code> is more common, <code>loginctl poweroff</code> works identically.</p>
+<h2 id="tutorial-tracing-a-session">Tutorial: tracing a session<a hidden class="anchor" aria-hidden="true" href="#tutorial-tracing-a-session">#</a></h2>
+<p>Let&rsquo;s walk through observing a real session on your machine.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 1. Find your session ID (inside a shell, sourced from env)</span>
+</span></span><span style="display:flex;"><span>echo $XDG_SESSION_ID
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 2</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 2. See its metadata</span>
+</span></span><span style="display:flex;"><span>loginctl show-session $XDG_SESSION_ID
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ... look at Type, Class, State, Active, Seat</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 3. See its cgroup scope</span>
+</span></span><span style="display:flex;"><span>systemctl status session-$XDG_SESSION_ID.scope
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Tree of every process belonging to this session</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 4. See your user slice</span>
+</span></span><span style="display:flex;"><span>systemctl status user-<span style="color:#66d9ef">$(</span>id -u<span style="color:#66d9ef">)</span>.slice
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Includes the session scope and user@UID.service</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 5. See your user services</span>
+</span></span><span style="display:flex;"><span>systemctl --user list-units --type<span style="color:#f92672">=</span>service
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 6. Watch session events live</span>
+</span></span><span style="display:flex;"><span>busctl monitor org.freedesktop.login1 &amp;
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># In another terminal: switch VTs, lock screen, etc., watch signals fire</span>
+</span></span><span style="display:flex;"><span>kill %1
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 7. Who&#39;s got inhibitors right now?</span>
+</span></span><span style="display:flex;"><span>systemd-inhibit --list
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 8. What device ACLs does your session have?</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> d in /dev/dri/card* /dev/input/event* /dev/snd/*; <span style="color:#66d9ef">do</span>
+</span></span><span style="display:flex;"><span>  acl<span style="color:#f92672">=</span><span style="color:#66d9ef">$(</span>getfacl <span style="color:#e6db74">&#34;</span>$d<span style="color:#e6db74">&#34;</span> 2&gt;/dev/null | grep <span style="color:#e6db74">&#34;user:</span><span style="color:#66d9ef">$(</span>id -u<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">[</span> -n <span style="color:#e6db74">&#34;</span>$acl<span style="color:#e6db74">&#34;</span> <span style="color:#f92672">]</span> <span style="color:#f92672">&amp;&amp;</span> echo <span style="color:#e6db74">&#34;</span>$d<span style="color:#e6db74"> -&gt; </span>$acl<span style="color:#e6db74">&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">done</span>
+</span></span></code></pre></div><p>This walk teaches you more about logind in 30 seconds than any doc.</p>
+<h2 id="linger-in-depth">Linger in depth<a hidden class="anchor" aria-hidden="true" href="#linger-in-depth">#</a></h2>
+<p>Linger is the escape hatch from &ldquo;logout kills everything.&rdquo; It&rsquo;s a per-user bit: if set, <code>user@UID.service</code> keeps running past the last session close, and user systemd services / timers continue executing.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl enable-linger zl
+</span></span><span style="display:flex;"><span>cat /var/lib/systemd/linger/zl       <span style="color:#75715e"># empty file; presence = lingering</span>
+</span></span></code></pre></div><p>When does lingering matter:</p>
+<ul>
+<li><strong>Personal services that should run 24/7.</strong> Syncthing, a personal Git server, a Matrix bridge, a home-automation integration. Put them in <code>~/.config/systemd/user/</code>, enable them, enable linger. They survive logout and reboot.</li>
+<li><strong>Headless servers you SSH into.</strong> Without linger, your tmux session dies when SSH disconnects (if <code>KillUserProcesses=yes</code>). With linger, <code>systemctl --user</code> services persist.</li>
+</ul>
+<p>When it doesn&rsquo;t:</p>
+<ul>
+<li><strong>Shared graphical machines.</strong> Leaving user services running for every logout is usually wasteful.</li>
+<li><strong>Interactive programs you want ended.</strong> Linger doesn&rsquo;t save your interactive shell or manually-backgrounded jobs — those still die unless launched under a systemd user scope.</li>
+</ul>
+<p>The correct idiom for &ldquo;I want this daemon to run even after I log out&rdquo; is:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>loginctl enable-linger $USER
+</span></span><span style="display:flex;"><span>cat &gt; ~/.config/systemd/user/mydaemon.service <span style="color:#e6db74">&lt;&lt;&#39;EOF&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Unit]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Description=My daemon
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Service]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">ExecStart=/home/%u/bin/mydaemon
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">Restart=on-failure
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">[Install]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">WantedBy=default.target
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">EOF</span>
+</span></span><span style="display:flex;"><span>systemctl --user daemon-reload
+</span></span><span style="display:flex;"><span>systemctl --user enable --now mydaemon.service
+</span></span></code></pre></div><p>Survives logout, survives reboot.</p>
+<h2 id="integration-points-worth-knowing">Integration points worth knowing<a hidden class="anchor" aria-hidden="true" href="#integration-points-worth-knowing">#</a></h2>
+<p><strong>PAM.</strong> <code>pam_systemd.so</code> is the bridge. Most PAM service configs (login, sshd, gdm-password, su) include <code>session optional pam_systemd.so</code>, which calls <code>CreateSession</code> on logind at session start. Without this, logind has no idea your login happened.</p>
+<p><strong>systemd user manager.</strong> Each user&rsquo;s <code>user@UID.service</code> runs <code>systemd --user</code>, which is a per-user systemd instance managing <code>.service</code>/<code>.timer</code>/<code>.target</code> units out of <code>~/.config/systemd/user/</code> and <code>/etc/systemd/user/</code>. logind starts and stops this based on session state.</p>
+<p><strong>Wayland/X11 compositors.</strong> They open <code>/dev/dri/card*</code> and <code>/dev/input/event*</code>, which they only have access to because of logind&rsquo;s ACLs on the active session. When you switch away, they lose access; when you switch back, they regain it. A well-written compositor handles the transition gracefully (pauses rendering, releases DRM master, re-acquires on return).</p>
+<p><strong>polkit.</strong> Many polkit rules check session properties via logind: &ldquo;is this user in an active local session?&rdquo; drives many default allow/deny decisions. polkit calls <code>GetSession</code> and <code>GetSeat</code> on logind to answer these questions.</p>
+<p><strong>Desktop environments.</strong> GNOME Shell, KDE Plasma, and their settings daemons listen for logind D-Bus signals (<code>PrepareForSleep</code>, <code>PrepareForShutdown</code>, <code>SessionNew</code>) and issue methods (<code>Suspend</code>, <code>Lock</code>) in response to user actions.</p>
+<p><strong>SSH.</strong> <code>sshd</code> itself doesn&rsquo;t depend on logind, but session tracking and <code>$XDG_RUNTIME_DIR</code> setup for SSHed-in users come from the <code>pam_systemd.so</code> line in <code>/etc/pam.d/sshd</code>.</p>
+<h2 id="things-that-trip-people-up">Things that trip people up<a hidden class="anchor" aria-hidden="true" href="#things-that-trip-people-up">#</a></h2>
+<p><strong>&ldquo;My user services stop when I log out.&rdquo;</strong> Linger not enabled. <code>loginctl enable-linger $USER</code>.</p>
+<p><strong>&ldquo;I SSHed in but can&rsquo;t run GUI apps.&rdquo;</strong> No seat → no DRI/input ACLs. Use <code>ssh -X</code> for X11 forwarding, or waypipe for Wayland, or RDP/VNC. Granting <code>/dev/dri/card0</code> access manually works for rendering but not for display.</p>
+<p><strong>&ldquo;systemctl poweroff says &lsquo;Access denied&rsquo;.&rdquo;</strong> Polkit rule doesn&rsquo;t allow it. Usually because you&rsquo;re remote (SSH), or there are multiple users logged in, or your session isn&rsquo;t active. <code>pkaction --verbose --action-id org.freedesktop.login1.power-off</code> shows the policy.</p>
+<p><strong>&ldquo;My session shows <code>State=closing</code> and never goes away.&rdquo;</strong> Some process is blocking cleanup. <code>systemctl status session-N.scope</code> to see what&rsquo;s still there. Usually a misbehaving daemon or a frozen PTY; <code>loginctl terminate-session N</code> forces it.</p>
+<p><strong>&quot;/run/user/1000 is full.&quot;</strong> <code>RuntimeDirectorySize</code> hit. Usually a leaking socket or tmpfile from some app. Check with <code>du -h /run/user/1000</code>. On modern systems the default cap is reasonable, but video editing or audio-heavy apps can balloon it.</p>
+<p><strong>&ldquo;Closing the lid suspends when I want it docked.&rdquo;</strong> <code>HandleLidSwitchDocked=ignore</code> in <code>logind.conf</code>, plus make sure logind detects the dock (an external monitor on the right port usually does it). Or use <code>HandleLidSwitch=ignore</code> if you never want lid-close to suspend.</p>
+<p><strong>&ldquo;My graphical session loses hardware on VT switch.&rdquo;</strong> This is by design — active session owns the hardware. The compositor should handle the transition (most modern ones do). If it doesn&rsquo;t, that&rsquo;s a compositor bug; complain upstream.</p>
+<p><strong>&ldquo;Why is <code>/tmp</code> shared but <code>/run/user/1000</code> private?&rdquo;</strong> <code>/tmp</code> is global (classic Unix); <code>/run/user/UID</code> is per-user, tmpfs, created/destroyed by logind, with mode 0700. Use it for per-user sockets and runtime files; logind cleans up automatically on last-session-close (or on reboot if lingering).</p>
+<p><strong>&ldquo;Bus sessions don&rsquo;t carry XDG environment to cron/systemd units.&rdquo;</strong> User systemd manager inherits a minimal environment. If a user service needs <code>DISPLAY</code>, <code>DBUS_SESSION_BUS_ADDRESS</code>, <code>WAYLAND_DISPLAY</code>, etc., use <code>systemctl --user import-environment VAR VAR VAR</code> from your session startup, or set explicitly in the unit&rsquo;s <code>Environment=</code>.</p>
+<h2 id="how-logind-fits-with-everything-else">How logind fits with everything else<a hidden class="anchor" aria-hidden="true" href="#how-logind-fits-with-everything-else">#</a></h2>
+<ul>
+<li><strong>vs PAM.</strong> PAM authenticates; logind tracks. PAM&rsquo;s <code>pam_systemd.so</code> is the bridge that notifies logind.</li>
+<li><strong>vs systemd the init system.</strong> logind is a separate daemon that happens to ship with systemd. It uses systemd&rsquo;s cgroup and unit machinery — sessions are scopes, users have slices, user managers are services. But logind itself is not PID 1.</li>
+<li><strong>vs udev.</strong> udev names devices and tags them with seat assignments. logind applies the session-scoped ACLs on top.</li>
+<li><strong>vs polkit.</strong> polkit asks logind &ldquo;who is this caller, are they active, are they local?&rdquo; to make authorization decisions.</li>
+<li><strong>vs the compositor.</strong> Compositor relies on logind for device ACLs and session-active state. When inactive, compositor releases DRM master; when active again, reacquires.</li>
+<li><strong>vs the user&rsquo;s systemd instance.</strong> Each logged-in user has their own <code>systemd --user</code> running inside <code>user@UID.service</code>. logind starts and stops this based on session presence (or keeps it running if lingering).</li>
+</ul>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Inspection</span>
+</span></span><span style="display:flex;"><span>loginctl                              <span style="color:#75715e"># overview (list-sessions)</span>
+</span></span><span style="display:flex;"><span>loginctl list-sessions
+</span></span><span style="display:flex;"><span>loginctl list-users
+</span></span><span style="display:flex;"><span>loginctl list-seats
+</span></span><span style="display:flex;"><span>loginctl show-session &lt;id&gt;
+</span></span><span style="display:flex;"><span>loginctl show-user &lt;user&gt;
+</span></span><span style="display:flex;"><span>loginctl show-seat &lt;seat&gt;
+</span></span><span style="display:flex;"><span>loginctl user-status
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Session identity inside a shell</span>
+</span></span><span style="display:flex;"><span>echo $XDG_SESSION_ID
+</span></span><span style="display:flex;"><span>echo $XDG_SESSION_TYPE                <span style="color:#75715e"># tty, wayland, x11</span>
+</span></span><span style="display:flex;"><span>echo $XDG_RUNTIME_DIR                 <span style="color:#75715e"># /run/user/UID</span>
+</span></span><span style="display:flex;"><span>echo $XDG_SEAT                        <span style="color:#75715e"># seat0 or empty</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Session control</span>
+</span></span><span style="display:flex;"><span>loginctl activate &lt;id&gt;                <span style="color:#75715e"># fast user switch</span>
+</span></span><span style="display:flex;"><span>loginctl lock-session &lt;id&gt;
+</span></span><span style="display:flex;"><span>loginctl unlock-session &lt;id&gt;
+</span></span><span style="display:flex;"><span>loginctl terminate-session &lt;id&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User services / linger</span>
+</span></span><span style="display:flex;"><span>loginctl enable-linger &lt;user&gt;
+</span></span><span style="display:flex;"><span>loginctl disable-linger &lt;user&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Inhibitors</span>
+</span></span><span style="display:flex;"><span>systemd-inhibit --list
+</span></span><span style="display:flex;"><span>systemd-inhibit --what<span style="color:#f92672">=</span>sleep --who<span style="color:#f92672">=</span>me --why<span style="color:#f92672">=</span>... &lt;cmd&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Power</span>
+</span></span><span style="display:flex;"><span>loginctl poweroff
+</span></span><span style="display:flex;"><span>loginctl reboot
+</span></span><span style="display:flex;"><span>loginctl suspend
+</span></span><span style="display:flex;"><span>loginctl hibernate
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># D-Bus</span>
+</span></span><span style="display:flex;"><span>busctl tree org.freedesktop.login1
+</span></span><span style="display:flex;"><span>busctl introspect org.freedesktop.login1 /org/freedesktop/login1
+</span></span><span style="display:flex;"><span>busctl monitor org.freedesktop.login1
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Config</span>
+</span></span><span style="display:flex;"><span>$EDITOR /etc/systemd/logind.conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># or drop-in: /etc/systemd/logind.conf.d/*.conf</span>
+</span></span><span style="display:flex;"><span>systemctl restart systemd-logind      <span style="color:#75715e"># disruptive on a live desktop!</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># cgroup view</span>
+</span></span><span style="display:flex;"><span>systemctl status user-<span style="color:#66d9ef">$(</span>id -u<span style="color:#66d9ef">)</span>.slice
+</span></span><span style="display:flex;"><span>systemctl status session-$XDG_SESSION_ID.scope
+</span></span><span style="display:flex;"><span>systemctl --user list-units
+</span></span></code></pre></div><h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man logind.conf</code>, <code>man loginctl</code>, <code>man systemd-logind.service</code>, <code>man sd-login</code>, <code>man pam_systemd</code></strong> — the references. <code>man logind.conf</code> is where all the policy knobs are documented. <code>man sd-login</code> documents the C API other daemons use to integrate.</li>
+<li><strong>freedesktop.org logind D-Bus spec</strong> — the authoritative list of methods, signals, properties. Shorter and cleaner than the man pages for the API surface.</li>
+<li><strong>The systemd source tree</strong> under <code>src/login/</code> — readable C, not huge, and it&rsquo;s clarifying to see how sessions are actually represented.</li>
+<li><strong>Lennart Poettering&rsquo;s &ldquo;systemd for administrators&rdquo; blog series, part 13</strong> — original design essay on multi-seat. Dated but explains the why.</li>
+<li><strong><code>busctl introspect</code></strong> on logind&rsquo;s objects — your system&rsquo;s <em>current</em> logind is always the authoritative answer to &ldquo;what methods exist, what do they do, what&rsquo;s the current state.&rdquo;</li>
+</ul>
+<p>The mental model to carry: <strong>logind tracks who&rsquo;s logged in (user), how they&rsquo;re logged in (session), and where they&rsquo;re sitting (seat), arbitrates access to hardware based on active-seat policy, governs power operations through inhibitors and polkit, and exposes all of it as a D-Bus API for everything else in the userspace stack to coordinate around.</strong> It&rsquo;s the answer to &ldquo;how does a modern Linux desktop handle multi-user, multi-session, hot-plug, suspend/resume, graphical sessions, and device access all at once,&rdquo; and most of the machinery becomes legible once you have the user/session/seat triangle in your head.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/network_manager/">
+    <small>← Previous</small>
+    <span>NetworkManager: a practical guide</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/wayland/">
+    <small>Next →</small>
+    <span>Wayland</span>
+  </a></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

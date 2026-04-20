@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Systemd | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="What systemd is and why it exists
+Before systemd, Linux boot was a parade of shell scripts. SysV init ran /etc/init.d/* scripts sequentially based on runlevels; Upstart (Ubuntu&rsquo;s attempt) added event-based triggers. The problems piled up:
+
+Slow. Sequential script execution; no parallelism beyond crude tricks.
+Unreliable. Every daemon invented its own forking/PID-file dance; the init system had no reliable way to know if a service was actually running.
+Fragmented. Daemon supervision, socket activation, device events, cron, logging, login sessions — each was a separate project with its own config format.
+Opaque. A service failing at boot meant reading a pile of shell scripts and guessing at ordering dependencies.
+
+systemd (started 2010 by Lennart Poettering at Red Hat, now the default on most major distros) took the position that init shouldn&rsquo;t just start daemons — it should be a platform for managing system state. The design bet was that consolidating service management, socket activation, device events, cgroups, logging, and session tracking into one coherent model would be net-simpler than the alternative, even if the individual project got large.">
+<meta name="author" content="Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux/anatomy/systemd/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.199042e659bc7245f5609d333d6c044eb554a0640849bb874e1dff8eb0f57209.css" integrity="sha256-GZBC5lm8ckX1YJ0zPWwETrVUoGQISbuHTh3/jrD1cgk=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux/anatomy/systemd/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Systemd
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 20:58:50 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span>
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="what-systemd-is-and-why-it-exists">What systemd is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-systemd-is-and-why-it-exists">#</a></h2>
+<p>Before systemd, Linux boot was a parade of shell scripts. SysV init ran <code>/etc/init.d/*</code> scripts sequentially based on runlevels; Upstart (Ubuntu&rsquo;s attempt) added event-based triggers. The problems piled up:</p>
+<ul>
+<li><strong>Slow.</strong> Sequential script execution; no parallelism beyond crude tricks.</li>
+<li><strong>Unreliable.</strong> Every daemon invented its own forking/PID-file dance; the init system had no reliable way to know if a service was actually running.</li>
+<li><strong>Fragmented.</strong> Daemon supervision, socket activation, device events, cron, logging, login sessions — each was a separate project with its own config format.</li>
+<li><strong>Opaque.</strong> A service failing at boot meant reading a pile of shell scripts and guessing at ordering dependencies.</li>
+</ul>
+<p>systemd (started 2010 by Lennart Poettering at Red Hat, now the default on most major distros) took the position that <strong>init shouldn&rsquo;t just start daemons — it should be a platform for managing system state</strong>. The design bet was that consolidating service management, socket activation, device events, cgroups, logging, and session tracking into one coherent model would be net-simpler than the alternative, even if the individual project got large.</p>
+<p>Whether this trade was worth it is an eternal flamewar. Pragmatically: on any mainstream distro in 2026, systemd owns the shape of the system, and fluency with it pays off enormously.</p>
+<p><strong>The core promise:</strong> a single, consistent, declarative model — <em>units</em> — for describing everything the system needs to manage. One format, one set of commands, one log stream.</p>
+<h2 id="the-unit-the-central-abstraction">The unit: the central abstraction<a hidden class="anchor" aria-hidden="true" href="#the-unit-the-central-abstraction">#</a></h2>
+<p>Everything systemd manages is a <strong>unit</strong>. A unit is a named configuration object with a type (given by its file extension) and a set of properties. Think of units as typed declarations of intent — &ldquo;this service should run&rdquo;, &ldquo;this mount point should exist&rdquo;, &ldquo;this target is the goal of booting.&rdquo;</p>
+<p>The unit types you&rsquo;ll encounter:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Type</th>
+          <th>What it describes</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>.service</code></td>
+          <td>A process or daemon to run</td>
+      </tr>
+      <tr>
+          <td><code>.socket</code></td>
+          <td>A listening socket that can activate a service on demand</td>
+      </tr>
+      <tr>
+          <td><code>.timer</code></td>
+          <td>A scheduled trigger (replaces cron)</td>
+      </tr>
+      <tr>
+          <td><code>.target</code></td>
+          <td>A grouping/synchronization point (like old runlevels)</td>
+      </tr>
+      <tr>
+          <td><code>.mount</code></td>
+          <td>A filesystem to mount</td>
+      </tr>
+      <tr>
+          <td><code>.automount</code></td>
+          <td>A mount point that mounts on first access</td>
+      </tr>
+      <tr>
+          <td><code>.device</code></td>
+          <td>A device node (auto-generated from udev)</td>
+      </tr>
+      <tr>
+          <td><code>.path</code></td>
+          <td>A filesystem path to watch</td>
+      </tr>
+      <tr>
+          <td><code>.slice</code></td>
+          <td>A cgroup resource-limit container</td>
+      </tr>
+      <tr>
+          <td><code>.scope</code></td>
+          <td>A cgroup for externally-managed processes</td>
+      </tr>
+      <tr>
+          <td><code>.swap</code></td>
+          <td>A swap file or partition</td>
+      </tr>
+  </tbody>
+</table>
+<p>All units share a common syntax and a common set of management commands. You don&rsquo;t learn ten different daemon supervisors; you learn one system.</p>
+<p><strong>Where units live:</strong></p>
+<pre tabindex="0"><code>/usr/lib/systemd/system/    ← distro-shipped units. Don&#39;t edit.
+/etc/systemd/system/        ← your units + overrides. Wins over /usr/lib.
+/run/systemd/system/        ← runtime-generated. Vanishes on reboot.
+</code></pre><p>Same three-tier layout as udev, firewalld, and most modern Linux config: vendor / admin / runtime, with the admin layer winning.</p>
+<p>User-level services (running under your login, not root) live in parallel directories under <code>~/.config/systemd/user/</code>, etc.</p>
+<h2 id="reading-a-service-unit">Reading a service unit<a hidden class="anchor" aria-hidden="true" href="#reading-a-service-unit">#</a></h2>
+<p>Here&rsquo;s a real service file — simplified version of what sshd&rsquo;s unit looks like:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">OpenSSH server daemon</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Documentation</span><span style="color:#f92672">=</span><span style="color:#e6db74">man:sshd(8) man:sshd_config(5)</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">After</span><span style="color:#f92672">=</span><span style="color:#e6db74">network.target auditd.service</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Wants</span><span style="color:#f92672">=</span><span style="color:#e6db74">sshd-keygen.target</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span><span style="color:#f92672">=</span><span style="color:#e6db74">notify</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStartPre</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/sbin/sshd -t</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/sbin/sshd -D $OPTIONS</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecReload</span><span style="color:#f92672">=</span><span style="color:#e6db74">/bin/kill -HUP $MAINPID</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">KillMode</span><span style="color:#f92672">=</span><span style="color:#e6db74">process</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Restart</span><span style="color:#f92672">=</span><span style="color:#e6db74">on-failure</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RestartSec</span><span style="color:#f92672">=</span><span style="color:#e6db74">42s</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">multi-user.target</span>
+</span></span></code></pre></div><p>Three sections, each with its job:</p>
+<p><strong><code>[Unit]</code></strong> — metadata and dependencies. <code>Description</code> is for humans. <code>After=</code>/<code>Before=</code> specify ordering (not dependencies — just order). <code>Requires=</code>/<code>Wants=</code> specify dependencies — if A <code>Wants</code> B, then starting A also starts B; <code>Requires</code> is stricter (if B fails, A fails too).</p>
+<p><strong><code>[Service]</code></strong> — how to run it. <code>Type=</code> tells systemd how to tell when the service is &ldquo;started&rdquo; (covered below). <code>ExecStart=</code> is the main command. <code>ExecStartPre</code>, <code>ExecStartPost</code>, <code>ExecStop</code>, <code>ExecReload</code> are lifecycle hooks. <code>Restart=</code> controls auto-restart policy.</p>
+<p><strong><code>[Install]</code></strong> — what happens on <code>enable</code>. <code>WantedBy=multi-user.target</code> means &ldquo;when multi-user.target is started, also start this service.&rdquo; This is how units get pulled in at boot.</p>
+<h2 id="service-types--the-most-important-single-concept">Service types — the most important single concept<a hidden class="anchor" aria-hidden="true" href="#service-types--the-most-important-single-concept">#</a></h2>
+<p><code>Type=</code> in a service unit tells systemd <strong>when the service is considered &ldquo;started&rdquo;</strong>, which matters because other units may be waiting on it. Get this wrong and you&rsquo;ll have services racing.</p>
+<table>
+  <thead>
+      <tr>
+          <th>Type</th>
+          <th>Meaning</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>simple</code></td>
+          <td>The main process is the one in <code>ExecStart</code>. Considered started immediately after fork. The default, but often wrong.</td>
+      </tr>
+      <tr>
+          <td><code>exec</code></td>
+          <td>Like <code>simple</code>, but considered started only after <code>execve()</code> succeeds. Usually what you actually want if not <code>simple</code>.</td>
+      </tr>
+      <tr>
+          <td><code>forking</code></td>
+          <td>Classic daemon: <code>ExecStart</code> forks and the parent exits. Started when parent exits. Needs <code>PIDFile=</code> for reliable tracking.</td>
+      </tr>
+      <tr>
+          <td><code>oneshot</code></td>
+          <td>A command that runs once and exits. Considered started after it completes. Combine with <code>RemainAfterExit=yes</code> to make the unit &ldquo;stay active&rdquo; afterward.</td>
+      </tr>
+      <tr>
+          <td><code>notify</code></td>
+          <td>The service calls <code>sd_notify(READY=1)</code> to signal readiness. Most reliable for daemons that support it.</td>
+      </tr>
+      <tr>
+          <td><code>notify-reload</code></td>
+          <td>Like <code>notify</code> but the service also signals during reload.</td>
+      </tr>
+      <tr>
+          <td><code>dbus</code></td>
+          <td>Service is &ldquo;up&rdquo; when it acquires a well-known D-Bus name.</td>
+      </tr>
+      <tr>
+          <td><code>idle</code></td>
+          <td>Like <code>simple</code> but delayed until other jobs finish. Cosmetic, for tty services so their output doesn&rsquo;t interleave.</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>If you&rsquo;re writing a new service</strong>, prefer <code>Type=notify</code> (if you control the code and can call <code>sd_notify</code>) or <code>Type=exec</code>. <code>Type=simple</code> is the default but only correct if the service has no meaningful startup sequence.</p>
+<h2 id="dependencies-and-ordering--the-distinction-that-trips-everyone">Dependencies and ordering — the distinction that trips everyone<a hidden class="anchor" aria-hidden="true" href="#dependencies-and-ordering--the-distinction-that-trips-everyone">#</a></h2>
+<p>These are <strong>orthogonal</strong>. Keep them straight:</p>
+<p><strong>Dependency</strong> (<code>Requires=</code>, <code>Wants=</code>, <code>BindsTo=</code>, <code>PartOf=</code>): &ldquo;if A is active, so must be B.&rdquo; Changes what starts when you start A. Says nothing about order.</p>
+<p><strong>Ordering</strong> (<code>After=</code>, <code>Before=</code>): &ldquo;when both A and B are starting, start B before A.&rdquo; Says nothing about whether either needs the other.</p>
+<p>You almost always want both. &ldquo;Start foo.service only after the network is up&rdquo; needs <em>both</em> <code>Requires=network.target</code> and <code>After=network.target</code>.</p>
+<p>The flavors of dependency:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Directive</th>
+          <th>Behavior</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>Wants=X</code></td>
+          <td>Pull in X when starting. If X fails, keep going anyway. Soft dependency.</td>
+      </tr>
+      <tr>
+          <td><code>Requires=X</code></td>
+          <td>Pull in X. If X fails to start, also fail. If X stops later, stop too.</td>
+      </tr>
+      <tr>
+          <td><code>Requisite=X</code></td>
+          <td>X must be <em>already</em> active; don&rsquo;t pull it in. Fail if not.</td>
+      </tr>
+      <tr>
+          <td><code>BindsTo=X</code></td>
+          <td>Like <code>Requires=</code>, but also stops us if X stops for any reason (even cleanly). Tight coupling.</td>
+      </tr>
+      <tr>
+          <td><code>PartOf=X</code></td>
+          <td>Stop/restart signals to X propagate to us. One-way version of <code>BindsTo</code>.</td>
+      </tr>
+      <tr>
+          <td><code>Conflicts=X</code></td>
+          <td>Starting us stops X, and vice versa.</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Inverse directives</strong> also exist and are surprisingly useful: <code>WantedBy=</code>, <code>RequiredBy=</code>. These appear in <code>[Install]</code> sections to say &ldquo;when this other unit is enabled, pull me in&rdquo; — the main mechanism for services attaching to <code>multi-user.target</code>.</p>
+<h2 id="targets-the-closest-thing-to-runlevels">Targets: the closest thing to runlevels<a hidden class="anchor" aria-hidden="true" href="#targets-the-closest-thing-to-runlevels">#</a></h2>
+<p>Targets are units that don&rsquo;t &ldquo;do&rdquo; anything — they&rsquo;re synchronization points. You start a target, and the dependency graph pulls in everything that should be active at that state.</p>
+<p>The classic ones:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Target</th>
+          <th>What it means</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>default.target</code></td>
+          <td>What boot aims for (usually an alias for <code>graphical.target</code> or <code>multi-user.target</code>)</td>
+      </tr>
+      <tr>
+          <td><code>multi-user.target</code></td>
+          <td>Multi-user text-mode system (roughly old runlevel 3)</td>
+      </tr>
+      <tr>
+          <td><code>graphical.target</code></td>
+          <td>GUI-enabled system (roughly old runlevel 5)</td>
+      </tr>
+      <tr>
+          <td><code>basic.target</code></td>
+          <td>Mounts, sockets, basic services ready</td>
+      </tr>
+      <tr>
+          <td><code>sysinit.target</code></td>
+          <td>Early boot: filesystems mounted, swap on</td>
+      </tr>
+      <tr>
+          <td><code>network-online.target</code></td>
+          <td>&ldquo;The network is actually usable&rdquo; (as opposed to <code>network.target</code>, which just means &ldquo;network stack is configured&rdquo;)</td>
+      </tr>
+      <tr>
+          <td><code>rescue.target</code></td>
+          <td>Single-user mode with a root shell</td>
+      </tr>
+      <tr>
+          <td><code>emergency.target</code></td>
+          <td>Absolute minimum: root FS mounted read-only, shell, nothing else</td>
+      </tr>
+      <tr>
+          <td><code>shutdown.target</code>, <code>reboot.target</code>, <code>poweroff.target</code></td>
+          <td>Shutdown states</td>
+      </tr>
+      <tr>
+          <td><code>suspend.target</code>, <code>hibernate.target</code></td>
+          <td>Sleep states</td>
+      </tr>
+  </tbody>
+</table>
+<p>Change the default target:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl set-default multi-user.target   <span style="color:#75715e"># boot to text mode</span>
+</span></span><span style="display:flex;"><span>sudo systemctl set-default graphical.target    <span style="color:#75715e"># boot to GUI</span>
+</span></span></code></pre></div><p>Switch immediately (like old <code>init 3</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl isolate multi-user.target
+</span></span></code></pre></div><p><code>isolate</code> means &ldquo;activate this target and stop everything not needed by it&rdquo; — the runlevel-change analog.</p>
+<h2 id="the-three-part-life-cycle-enable-start-running">The three-part life cycle: enable, start, running<a hidden class="anchor" aria-hidden="true" href="#the-three-part-life-cycle-enable-start-running">#</a></h2>
+<p>There are two orthogonal axes you need to hold in your head:</p>
+<ul>
+<li><strong>Is this unit <em>enabled?</em></strong> — will it start automatically when its <code>WantedBy=</code> target starts? (Lives in <code>[Install]</code> section, takes effect via symlinks in <code>*.wants/</code> directories.)</li>
+<li><strong>Is this unit <em>active?</em></strong> — is it running right now?</li>
+</ul>
+<p>Four combinations, all valid:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Enabled</th>
+          <th>Active</th>
+          <th>Meaning</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Yes</td>
+          <td>Yes</td>
+          <td>Normal running service</td>
+      </tr>
+      <tr>
+          <td>Yes</td>
+          <td>No</td>
+          <td>Enabled but stopped (unusual — failed? explicitly stopped?)</td>
+      </tr>
+      <tr>
+          <td>No</td>
+          <td>Yes</td>
+          <td>Running now, won&rsquo;t start next boot</td>
+      </tr>
+      <tr>
+          <td>No</td>
+          <td>No</td>
+          <td>Dormant</td>
+      </tr>
+  </tbody>
+</table>
+<p>The commands:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl start foo.service      <span style="color:#75715e"># make active now</span>
+</span></span><span style="display:flex;"><span>systemctl stop foo.service       <span style="color:#75715e"># make inactive now</span>
+</span></span><span style="display:flex;"><span>systemctl enable foo.service     <span style="color:#75715e"># start automatically at boot</span>
+</span></span><span style="display:flex;"><span>systemctl disable foo.service    <span style="color:#75715e"># don&#39;t start at boot</span>
+</span></span><span style="display:flex;"><span>systemctl enable --now foo.service    <span style="color:#75715e"># both</span>
+</span></span><span style="display:flex;"><span>systemctl disable --now foo.service   <span style="color:#75715e"># both</span>
+</span></span><span style="display:flex;"><span>systemctl restart foo.service
+</span></span><span style="display:flex;"><span>systemctl reload foo.service     <span style="color:#75715e"># if ExecReload= defined; otherwise restart</span>
+</span></span><span style="display:flex;"><span>systemctl status foo.service     <span style="color:#75715e"># state + recent logs + cgroup contents</span>
+</span></span></code></pre></div><p><code>enable</code> works by creating symlinks in <code>/etc/systemd/system/*.wants/</code> (or wherever the unit&rsquo;s <code>WantedBy=</code> points). <code>disable</code> removes them. This is why unit files are declarative: enabling is a graph modification, not a runtime action.</p>
+<h2 id="inspecting-state">Inspecting state<a hidden class="anchor" aria-hidden="true" href="#inspecting-state">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl list-units                       <span style="color:#75715e"># active units</span>
+</span></span><span style="display:flex;"><span>systemctl list-units --all                 <span style="color:#75715e"># including inactive but loaded</span>
+</span></span><span style="display:flex;"><span>systemctl list-units --type<span style="color:#f92672">=</span>service        <span style="color:#75715e"># filter</span>
+</span></span><span style="display:flex;"><span>systemctl list-units --failed              <span style="color:#75715e"># just the broken ones</span>
+</span></span><span style="display:flex;"><span>systemctl list-unit-files                  <span style="color:#75715e"># all units on disk, enabled/disabled status</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>systemctl status foo.service               <span style="color:#75715e"># most useful single command</span>
+</span></span><span style="display:flex;"><span>systemctl cat foo.service                  <span style="color:#75715e"># the effective unit file (with overrides applied)</span>
+</span></span><span style="display:flex;"><span>systemctl show foo.service                 <span style="color:#75715e"># every single property (verbose)</span>
+</span></span><span style="display:flex;"><span>systemctl show foo.service -p MainPID      <span style="color:#75715e"># one property</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>systemctl list-dependencies foo.service    <span style="color:#75715e"># what foo pulls in</span>
+</span></span><span style="display:flex;"><span>systemctl list-dependencies --reverse foo.service   <span style="color:#75715e"># what pulls in foo</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>systemctl is-active foo.service            <span style="color:#75715e"># scripting-friendly</span>
+</span></span><span style="display:flex;"><span>systemctl is-enabled foo.service
+</span></span><span style="display:flex;"><span>systemctl is-failed foo.service
+</span></span></code></pre></div><p><code>systemctl status</code> is the one to memorize. It gives you: load state, active state, substate, enabled status, the ExecStart command, main PID, memory/CPU/task counts, cgroup tree with all processes, and the last ~10 log lines. When a service misbehaves, this is your first stop.</p>
+<h2 id="tutorial-writing-your-first-service">Tutorial: writing your first service<a hidden class="anchor" aria-hidden="true" href="#tutorial-writing-your-first-service">#</a></h2>
+<p>Say you want to run a Python script at boot, with auto-restart on failure, and logs going to the journal.</p>
+<p><strong>1. Write the script</strong> (<code>/usr/local/bin/myapp</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e">#!/usr/bin/env python3</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> time<span style="color:#f92672">,</span> sys
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">while</span> <span style="color:#66d9ef">True</span>:
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#34;working...&#34;</span>, flush<span style="color:#f92672">=</span><span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span>    time<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">10</span>)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo chmod +x /usr/local/bin/myapp
+</span></span></code></pre></div><p><strong>2. Create the unit</strong> at <code>/etc/systemd/system/myapp.service</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">My example service</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">After</span><span style="color:#f92672">=</span><span style="color:#e6db74">network-online.target</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Wants</span><span style="color:#f92672">=</span><span style="color:#e6db74">network-online.target</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span><span style="color:#f92672">=</span><span style="color:#e6db74">exec</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/local/bin/myapp</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Restart</span><span style="color:#f92672">=</span><span style="color:#e6db74">on-failure</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RestartSec</span><span style="color:#f92672">=</span><span style="color:#e6db74">5s</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Run as an unprivileged user</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">DynamicUser</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Security hardening — start with these, add more as needed</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectSystem</span><span style="color:#f92672">=</span><span style="color:#e6db74">strict</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectHome</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PrivateTmp</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">NoNewPrivileges</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">multi-user.target</span>
+</span></span></code></pre></div><p><strong>3. Activate:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl daemon-reload             <span style="color:#75715e"># tell systemd a new/changed unit exists</span>
+</span></span><span style="display:flex;"><span>sudo systemctl enable --now myapp.service
+</span></span><span style="display:flex;"><span>systemctl status myapp.service
+</span></span><span style="display:flex;"><span>journalctl -u myapp.service -f           <span style="color:#75715e"># follow the logs</span>
+</span></span></code></pre></div><p><strong>4. Iterate:</strong> edit the unit, then:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl daemon-reload
+</span></span><span style="display:flex;"><span>sudo systemctl restart myapp.service
+</span></span></code></pre></div><p>Forgetting <code>daemon-reload</code> after editing a unit is the #1 gotcha. Changes don&rsquo;t take effect until systemd re-parses the file.</p>
+<p><strong>A few design decisions in that unit worth noting:</strong></p>
+<ul>
+<li><code>Type=exec</code> (not <code>simple</code>) — guarantees the binary is actually runnable before considering us started.</li>
+<li><code>Restart=on-failure</code> — auto-restart only on non-zero exit or signal death, not when we exit cleanly.</li>
+<li><code>DynamicUser=yes</code> — systemd creates a transient user at start, destroys it at stop. Good for services that don&rsquo;t need a persistent UID.</li>
+<li><code>ProtectSystem=strict</code>, <code>ProtectHome=yes</code>, <code>PrivateTmp=yes</code>, <code>NoNewPrivileges=yes</code> — sandboxing flags. Start restrictive; loosen only when something breaks.</li>
+</ul>
+<h2 id="drop-ins-the-right-way-to-modify-vendor-units">Drop-ins: the right way to modify vendor units<a hidden class="anchor" aria-hidden="true" href="#drop-ins-the-right-way-to-modify-vendor-units">#</a></h2>
+<p>You should almost never edit a file in <code>/usr/lib/systemd/system/</code> — updates will overwrite it. Instead, use <strong>drop-ins</strong>: override fragments that layer on top of the original.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl edit sshd.service
+</span></span></code></pre></div><p>This opens an editor for <code>/etc/systemd/system/sshd.service.d/override.conf</code>. Put only what you want to change:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Environment</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;SSHD_EXTRA_OPTS=-p 2222&#34;</span>
+</span></span></code></pre></div><p>Save, exit — systemd reloads automatically. <code>systemctl cat sshd.service</code> shows you the effective composition (vendor unit + overrides).</p>
+<p>For fields that <em>append</em> vs. <em>replace</em>, there&rsquo;s a special rule: most list-like fields (like <code>ExecStart=</code>) <strong>replace</strong> the previous value. To clear and reset, you write the field empty first:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/sbin/sshd -D -p 2222</span>
+</span></span></code></pre></div><p>Without the empty line, systemd refuses (duplicate <code>ExecStart=</code>). This is a common gotcha.</p>
+<p>Related:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl edit --full sshd.service    <span style="color:#75715e"># edit the whole unit (copies to /etc)</span>
+</span></span><span style="display:flex;"><span>sudo systemctl revert sshd.service         <span style="color:#75715e"># undo all edits, back to vendor</span>
+</span></span></code></pre></div><h2 id="timers-cron-but-with-all-of-systemds-features">Timers: cron, but with all of systemd&rsquo;s features<a hidden class="anchor" aria-hidden="true" href="#timers-cron-but-with-all-of-systemds-features">#</a></h2>
+<p>A timer is a unit that triggers another unit on a schedule. Two files: the <code>.timer</code> and the <code>.service</code> it activates.</p>
+<p><strong><code>/etc/systemd/system/backup.service</code>:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">Nightly backup</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span><span style="color:#f92672">=</span><span style="color:#e6db74">oneshot</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/local/bin/do-backup</span>
+</span></span></code></pre></div><p><strong><code>/etc/systemd/system/backup.timer</code>:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">Run nightly backup</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Timer]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">OnCalendar</span><span style="color:#f92672">=</span><span style="color:#e6db74">daily</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Persistent</span><span style="color:#f92672">=</span><span style="color:#e6db74">true</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RandomizedDelaySec</span><span style="color:#f92672">=</span><span style="color:#e6db74">15m</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">timers.target</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo systemctl enable --now backup.timer
+</span></span><span style="display:flex;"><span>systemctl list-timers                        <span style="color:#75715e"># see when things will run</span>
+</span></span></code></pre></div><p>Why timers over cron:</p>
+<ul>
+<li><strong>Unified logging.</strong> Output goes to the journal; you can <code>journalctl -u backup.service</code> to see every run&rsquo;s logs.</li>
+<li><strong>Dependency-aware.</strong> The service can <code>Requires=network-online.target</code>, and the timer won&rsquo;t fire if dependencies aren&rsquo;t met.</li>
+<li><strong><code>Persistent=true</code></strong> — if the machine was off at the scheduled time, run on next boot (cron just skips).</li>
+<li><strong>Resource limits via the service.</strong> MemoryMax, CPU weight, etc.</li>
+<li><strong>Runs as a unit</strong>, inheriting all the hardening you put in the service.</li>
+</ul>
+<p>Calendar syntax (<code>OnCalendar=</code>) is expressive: <code>daily</code>, <code>weekly</code>, <code>*-*-* 03:00:00</code>, <code>Mon..Fri 09:00</code>, <code>2026-*-01</code>. <code>systemd-analyze calendar '&lt;expr&gt;'</code> validates and shows the next N occurrences.</p>
+<p>Alternative triggers: <code>OnBootSec=</code>, <code>OnStartupSec=</code>, <code>OnActiveSec=</code>, <code>OnUnitActiveSec=</code>, <code>OnUnitInactiveSec=</code>. Useful for &ldquo;run 5 minutes after boot&rdquo; or &ldquo;run every hour, measured from when the last run finished.&rdquo;</p>
+<h2 id="socket-activation-the-clever-part">Socket activation: the clever part<a hidden class="anchor" aria-hidden="true" href="#socket-activation-the-clever-part">#</a></h2>
+<p>A <code>.socket</code> unit owns a listening port/path. When something connects, systemd starts the corresponding <code>.service</code> and hands it the socket.</p>
+<p>Why this is a big deal:</p>
+<ul>
+<li><strong>Services don&rsquo;t need to be running continuously</strong> — they start on demand.</li>
+<li><strong>Boot ordering becomes simpler.</strong> A client doesn&rsquo;t need the server to be up; it just connects to the socket, and systemd brings the server up.</li>
+<li><strong>Zero-downtime restarts.</strong> systemd holds the socket across service restarts, so clients don&rsquo;t see a gap.</li>
+</ul>
+<p>Example — <code>/etc/systemd/system/echo.socket</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">Echo socket</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Socket]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ListenStream</span><span style="color:#f92672">=</span><span style="color:#e6db74">1234</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Accept</span><span style="color:#f92672">=</span><span style="color:#e6db74">no</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">sockets.target</span>
+</span></span></code></pre></div><p>And <code>/etc/systemd/system/echo.service</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Unit]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Description</span><span style="color:#f92672">=</span><span style="color:#e6db74">Echo service</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Requires</span><span style="color:#f92672">=</span><span style="color:#e6db74">echo.socket</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/local/bin/echo-server</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">StandardInput</span><span style="color:#f92672">=</span><span style="color:#e6db74">socket</span>
+</span></span></code></pre></div><p>Connect to port 1234, systemd starts <code>echo.service</code> with the socket passed as fd 3 (or stdin if <code>StandardInput=socket</code>). This is how modern sshd&rsquo;s socket activation works, how <code>cups.socket</code> + <code>cups.service</code> let printing daemons be lazy-loaded, etc.</p>
+<h2 id="path-units-react-to-filesystem-changes">Path units: react to filesystem changes<a hidden class="anchor" aria-hidden="true" href="#path-units-react-to-filesystem-changes">#</a></h2>
+<p>A <code>.path</code> unit watches a path and triggers a service when something changes. Useful for &ldquo;process files as they appear&rdquo;:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#75715e"># /etc/systemd/system/incoming.path</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Path]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PathExistsGlob</span><span style="color:#f92672">=</span><span style="color:#e6db74">/var/spool/incoming/*.txt</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">multi-user.target</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#75715e"># /etc/systemd/system/incoming.service</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span><span style="color:#f92672">=</span><span style="color:#e6db74">oneshot</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ExecStart</span><span style="color:#f92672">=</span><span style="color:#e6db74">/usr/local/bin/process-incoming</span>
+</span></span></code></pre></div><p>Drop a <code>.txt</code> file in <code>/var/spool/incoming/</code>, systemd starts <code>incoming.service</code>.</p>
+<h2 id="mount-and-automount-units">Mount and automount units<a hidden class="anchor" aria-hidden="true" href="#mount-and-automount-units">#</a></h2>
+<p>You can write mounts as units instead of <code>/etc/fstab</code> entries:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#75715e"># /etc/systemd/system/mnt-data.mount</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># File name MUST match the mount path: / becomes -, so /mnt/data → mnt-data.mount</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Mount]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">What</span><span style="color:#f92672">=</span><span style="color:#e6db74">/dev/disk/by-uuid/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Where</span><span style="color:#f92672">=</span><span style="color:#e6db74">/mnt/data</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Type</span><span style="color:#f92672">=</span><span style="color:#e6db74">ext4</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Options</span><span style="color:#f92672">=</span><span style="color:#e6db74">defaults,noatime</span>
+</span></span></code></pre></div><p>Or pair it with an <code>.automount</code> for lazy mounting:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#75715e"># /etc/systemd/system/mnt-data.automount</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Automount]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Where</span><span style="color:#f92672">=</span><span style="color:#e6db74">/mnt/data</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">TimeoutIdleSec</span><span style="color:#f92672">=</span><span style="color:#e6db74">30min</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">[Install]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">WantedBy</span><span style="color:#f92672">=</span><span style="color:#e6db74">multi-user.target</span>
+</span></span></code></pre></div><p>Mount on first access, unmount after 30 min of idle. Handy for rarely-touched network shares.</p>
+<p>For most users, <code>/etc/fstab</code> is still fine — systemd generates equivalent <code>.mount</code> units from it at boot (<code>systemd-fstab-generator</code>). But for conditional or complex mounts, unit files are more powerful.</p>
+<h2 id="cgroups-and-resource-control">cgroups and resource control<a hidden class="anchor" aria-hidden="true" href="#cgroups-and-resource-control">#</a></h2>
+<p>Every service runs inside a cgroup (cgroup v2 on modern systems). This gives systemd two superpowers:</p>
+<p><strong>Reliable process tracking.</strong> PIDs can be forged and reused; cgroup membership can&rsquo;t. <code>systemctl status</code> shows you the cgroup tree — every process the service has spawned, including daemonized grandchildren — and <code>systemctl kill foo.service</code> gets them all.</p>
+<p><strong>Resource limits.</strong> You can set these directly in unit files:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#66d9ef">[Service]</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">MemoryMax</span><span style="color:#f92672">=</span><span style="color:#e6db74">2G</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">MemoryHigh</span><span style="color:#f92672">=</span><span style="color:#e6db74">1.5G          # soft limit; throttles before hitting MemoryMax</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">CPUWeight</span><span style="color:#f92672">=</span><span style="color:#e6db74">50             # relative share, default 100</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">CPUQuota</span><span style="color:#f92672">=</span><span style="color:#e6db74">25%             # hard cap</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">IOWeight</span><span style="color:#f92672">=</span><span style="color:#e6db74">50</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">TasksMax</span><span style="color:#f92672">=</span><span style="color:#e6db74">100             # max number of tasks (processes + threads)</span>
+</span></span></code></pre></div><p>Browse the live cgroup tree:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemd-cgls                      <span style="color:#75715e"># tree of cgroups with process names</span>
+</span></span><span style="display:flex;"><span>systemd-cgtop                     <span style="color:#75715e"># top-style view, sortable by CPU/mem/IO</span>
+</span></span></code></pre></div><p>Slices let you group services for collective limits:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl status user.slice       <span style="color:#75715e"># all user processes</span>
+</span></span><span style="display:flex;"><span>systemctl status system.slice     <span style="color:#75715e"># all system services</span>
+</span></span><span style="display:flex;"><span>systemctl status machine.slice    <span style="color:#75715e"># containers/VMs managed by systemd</span>
+</span></span></code></pre></div><p>A service&rsquo;s cgroup path reflects its slice: <code>/sys/fs/cgroup/system.slice/nginx.service/</code>.</p>
+<h2 id="logging-journalctl">Logging: journalctl<a hidden class="anchor" aria-hidden="true" href="#logging-journalctl">#</a></h2>
+<p><code>systemd-journald</code> catches everything a service writes to stdout/stderr (and structured <code>sd_journal_send</code> calls), stores it in a binary indexed journal, and serves it up via <code>journalctl</code>.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>journalctl                          <span style="color:#75715e"># everything, pager</span>
+</span></span><span style="display:flex;"><span>journalctl -u sshd.service          <span style="color:#75715e"># one unit</span>
+</span></span><span style="display:flex;"><span>journalctl -u sshd -u NetworkManager     <span style="color:#75715e"># multiple</span>
+</span></span><span style="display:flex;"><span>journalctl -f                       <span style="color:#75715e"># follow (tail -f)</span>
+</span></span><span style="display:flex;"><span>journalctl -u foo -f                <span style="color:#75715e"># follow one unit</span>
+</span></span><span style="display:flex;"><span>journalctl -b                       <span style="color:#75715e"># this boot</span>
+</span></span><span style="display:flex;"><span>journalctl -b -1                    <span style="color:#75715e"># previous boot</span>
+</span></span><span style="display:flex;"><span>journalctl --list-boots             <span style="color:#75715e"># see boot IDs</span>
+</span></span><span style="display:flex;"><span>journalctl --since <span style="color:#e6db74">&#34;2 hours ago&#34;</span>
+</span></span><span style="display:flex;"><span>journalctl --since yesterday --until <span style="color:#e6db74">&#34;1 hour ago&#34;</span>
+</span></span><span style="display:flex;"><span>journalctl -p err                   <span style="color:#75715e"># priority: emerg, alert, crit, err, warning, notice, info, debug</span>
+</span></span><span style="display:flex;"><span>journalctl -p err..alert            <span style="color:#75715e"># range</span>
+</span></span><span style="display:flex;"><span>journalctl -k                       <span style="color:#75715e"># kernel messages only (like dmesg)</span>
+</span></span><span style="display:flex;"><span>journalctl -o json-pretty           <span style="color:#75715e"># structured output</span>
+</span></span><span style="display:flex;"><span>journalctl _UID<span style="color:#f92672">=</span><span style="color:#ae81ff">1000</span>                <span style="color:#75715e"># match a journal field</span>
+</span></span><span style="display:flex;"><span>journalctl /usr/bin/sshd            <span style="color:#75715e"># binary-based filter</span>
+</span></span></code></pre></div><p><strong>Persistence:</strong> by default, Fedora persists the journal to <code>/var/log/journal/</code>. If yours isn&rsquo;t and you want it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo mkdir -p /var/log/journal
+</span></span><span style="display:flex;"><span>sudo systemd-tmpfiles --create --prefix /var/log/journal
+</span></span><span style="display:flex;"><span>sudo systemctl restart systemd-journald
+</span></span></code></pre></div><p><strong>Disk usage:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>journalctl --disk-usage
+</span></span><span style="display:flex;"><span>sudo journalctl --vacuum-size<span style="color:#f92672">=</span>500M
+</span></span><span style="display:flex;"><span>sudo journalctl --vacuum-time<span style="color:#f92672">=</span>2weeks
+</span></span></code></pre></div><p>Size limits go in <code>/etc/systemd/journald.conf</code>: <code>SystemMaxUse=</code>, <code>SystemKeepFree=</code>, etc.</p>
+<h2 id="user-services">User services<a hidden class="anchor" aria-hidden="true" href="#user-services">#</a></h2>
+<p>systemd also runs per-user, for your session:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl --user list-units
+</span></span><span style="display:flex;"><span>systemctl --user enable --now my-script.service
+</span></span></code></pre></div><p>Units live in <code>~/.config/systemd/user/</code>. Great for personal automations: syncthing, custom scripts, language servers. No root needed; no fighting with <code>sudo</code>.</p>
+<p>One caveat: user-level units stop when you log out unless you enable <strong>lingering</strong> for your user:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo loginctl enable-linger $USER
+</span></span></code></pre></div><p>Now your user services keep running across logouts.</p>
+<h2 id="security-hardening">Security hardening<a hidden class="anchor" aria-hidden="true" href="#security-hardening">#</a></h2>
+<p>Unit files have dozens of directives to sandbox services. Starting points (add these to your service&rsquo;s <code>[Service]</code> block progressively):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-ini" data-lang="ini"><span style="display:flex;"><span><span style="color:#a6e22e">NoNewPrivileges</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes              # can&#39;t gain privileges via setuid, etc.</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectSystem</span><span style="color:#f92672">=</span><span style="color:#e6db74">strict             # / is read-only except /var, /etc, /run</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectHome</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes                  # /home, /root, /run/user invisible</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PrivateTmp</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes                   # private /tmp and /var/tmp</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">PrivateDevices</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes               # no /dev except core nodes</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectKernelTunables</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes        # /proc/sys, /sys read-only</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectKernelModules</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes         # can&#39;t load/unload modules</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">ProtectControlGroups</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes         # /sys/fs/cgroup read-only</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RestrictAddressFamilies</span><span style="color:#f92672">=</span><span style="color:#e6db74">AF_UNIX AF_INET AF_INET6    # whitelist socket types</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">RestrictNamespaces</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes           # can&#39;t create namespaces</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">LockPersonality</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes              # can&#39;t change execution domain</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">MemoryDenyWriteExecute</span><span style="color:#f92672">=</span><span style="color:#e6db74">yes       # no W+X memory (thwarts many exploits)</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">SystemCallFilter</span><span style="color:#f92672">=</span><span style="color:#e6db74">@system-service # seccomp whitelist</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">CapabilityBoundingSet</span><span style="color:#f92672">=</span>           <span style="color:#e6db74"># drop all capabilities (add only what you need)</span>
+</span></span></code></pre></div><p>Audit a unit&rsquo;s hardening:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemd-analyze security foo.service
+</span></span></code></pre></div><p>It scores 0–10 (0 = most secure, 10 = &ldquo;exposed&rdquo;), explaining each setting and suggesting improvements.</p>
+<h2 id="analyzing-boot">Analyzing boot<a hidden class="anchor" aria-hidden="true" href="#analyzing-boot">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemd-analyze                           <span style="color:#75715e"># total boot time, breakdown</span>
+</span></span><span style="display:flex;"><span>systemd-analyze blame                     <span style="color:#75715e"># services ranked by startup time</span>
+</span></span><span style="display:flex;"><span>systemd-analyze critical-chain            <span style="color:#75715e"># what was on the critical path</span>
+</span></span><span style="display:flex;"><span>systemd-analyze plot &gt; boot.svg           <span style="color:#75715e"># visual timeline</span>
+</span></span><span style="display:flex;"><span>systemd-analyze dot | dot -Tsvg &gt; deps.svg  <span style="color:#75715e"># dependency graph (huge)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>systemd-analyze verify /etc/systemd/system/myapp.service   <span style="color:#75715e"># lint a unit</span>
+</span></span><span style="display:flex;"><span>systemd-analyze calendar <span style="color:#e6db74">&#39;Mon..Fri *-*-* 09:00:00&#39;</span>         <span style="color:#75715e"># validate a calendar expr</span>
+</span></span><span style="display:flex;"><span>systemd-analyze timespan <span style="color:#e6db74">&#39;2h 30min&#39;</span>                        <span style="color:#75715e"># parse a time</span>
+</span></span></code></pre></div><p>When boot feels slow, <code>blame</code> and <code>critical-chain</code> are your first stops. Slow services that aren&rsquo;t on the critical path don&rsquo;t actually delay boot — that&rsquo;s what <code>critical-chain</code> filters for.</p>
+<h2 id="common-tasks-and-their-commands">Common tasks and their commands<a hidden class="anchor" aria-hidden="true" href="#common-tasks-and-their-commands">#</a></h2>
+<table>
+  <thead>
+      <tr>
+          <th>Task</th>
+          <th>Command</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>See what&rsquo;s broken</td>
+          <td><code>systemctl --failed</code></td>
+      </tr>
+      <tr>
+          <td>Restart a misbehaving service</td>
+          <td><code>systemctl restart foo</code></td>
+      </tr>
+      <tr>
+          <td>Watch logs live</td>
+          <td><code>journalctl -u foo -f</code></td>
+      </tr>
+      <tr>
+          <td>See why it failed</td>
+          <td><code>systemctl status foo</code> then <code>journalctl -xeu foo</code></td>
+      </tr>
+      <tr>
+          <td>Start fresh at boot</td>
+          <td><code>systemctl enable --now foo</code></td>
+      </tr>
+      <tr>
+          <td>Disable permanently</td>
+          <td><code>systemctl disable --now foo &amp;&amp; systemctl mask foo</code> (mask prevents accidental activation by dependencies)</td>
+      </tr>
+      <tr>
+          <td>Edit a unit safely</td>
+          <td><code>systemctl edit foo</code></td>
+      </tr>
+      <tr>
+          <td>Reload after editing a file</td>
+          <td><code>systemctl daemon-reload</code></td>
+      </tr>
+      <tr>
+          <td>Change boot target</td>
+          <td><code>systemctl set-default multi-user.target</code></td>
+      </tr>
+      <tr>
+          <td>Boot to rescue</td>
+          <td>add <code>systemd.unit=rescue.target</code> to kernel cmdline</td>
+      </tr>
+      <tr>
+          <td>Reboot / shutdown</td>
+          <td><code>systemctl reboot</code> / <code>systemctl poweroff</code></td>
+      </tr>
+      <tr>
+          <td>Suspend / hibernate</td>
+          <td><code>systemctl suspend</code> / <code>systemctl hibernate</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><code>mask</code> is worth knowing: it symlinks the unit to <code>/dev/null</code>, making it un-startable by any mechanism until you <code>unmask</code> it. Harsher than <code>disable</code>, useful for truly killing something off.</p>
+<h2 id="interactions-with-everything-else">Interactions with everything else<a hidden class="anchor" aria-hidden="true" href="#interactions-with-everything-else">#</a></h2>
+<ul>
+<li><strong>[[udev]]:</strong> tags devices with <code>TAG+=&quot;systemd&quot;</code> to create <code>.device</code> units. <code>ENV{SYSTEMD_WANTS}=...</code> in a rule activates a service on device presence.</li>
+<li><strong>[[D-Bus]]:</strong> systemd is heavily D-Bus-driven. <code>systemctl</code> is a D-Bus client; most operations go over <code>org.freedesktop.systemd1</code>.</li>
+<li><strong>logind:</strong> <code>systemd-logind</code> manages user sessions and seats. <code>loginctl</code> is its CLI. Handles the &ldquo;who is logged in, which session is active, what hardware access do they get&rdquo; questions.</li>
+<li><strong>networkd, resolved, timesyncd, homed:</strong> optional systemd components. On Fedora Workstation, you have <code>resolved</code> (DNS stub at 127.0.0.53) but <code>NetworkManager</code> instead of <code>networkd</code>, and usually <code>chrony</code> instead of <code>timesyncd</code>. You can mix.</li>
+<li><strong>Containers:</strong> <code>systemd-nspawn</code> is a lightweight container runtime. <code>machinectl</code> manages machines. Not commonly used directly, but podman can generate <code>.service</code> files for containers via <code>podman generate systemd</code>, integrating containers with the host&rsquo;s service model.</li>
+<li><strong>Portable services:</strong> <code>portablectl</code> attaches service images (like a lightweight package format) as units. Niche but interesting for shipping services as immutable trees.</li>
+</ul>
+<h2 id="the-philosophical-reality">The philosophical reality<a hidden class="anchor" aria-hidden="true" href="#the-philosophical-reality">#</a></h2>
+<p>systemd is opinionated. Its model — declarative units, cgroup-based tracking, integrated logging, dependency graphs, pervasive D-Bus — is <em>different</em> from the classical Unix &ldquo;each tool does one thing&rdquo; aesthetic. People who value that aesthetic often find systemd overreaching; people who value consistency and reliability find it a massive improvement.</p>
+<p>Practically: when you&rsquo;re fighting systemd, it&rsquo;s usually because you&rsquo;re pattern-matching to old init-script habits. The new model rewards leaning in — write proper units with proper dependencies, use socket activation, use timers instead of cron, use the journal, use drop-ins. Systems built this way are remarkably legible; you can inspect any running process&rsquo;s full context in seconds with <code>systemctl status</code>.</p>
+<h2 id="debugging-flow">Debugging flow<a hidden class="anchor" aria-hidden="true" href="#debugging-flow">#</a></h2>
+<p>When something&rsquo;s wrong:</p>
+<ol>
+<li><strong><code>systemctl --failed</code></strong> — what&rsquo;s broken?</li>
+<li><strong><code>systemctl status foo.service</code></strong> — state, PID, cgroup, recent log lines.</li>
+<li><strong><code>journalctl -xeu foo.service</code></strong> — full logs for the unit with explanatory messages.</li>
+<li><strong><code>systemctl cat foo.service</code></strong> — what does the effective unit file say?</li>
+<li><strong><code>systemctl list-dependencies foo.service</code></strong> — what does it depend on?</li>
+<li><strong><code>systemd-analyze verify</code></strong> — syntactic/semantic errors in the unit.</li>
+<li><strong><code>SYSTEMD_LOG_LEVEL=debug systemctl restart foo</code></strong> — verbose systemd internals for one command.</li>
+<li><strong><code>systemctl show foo.service</code></strong> — every property, when <code>cat</code> doesn&rsquo;t show enough.</li>
+</ol>
+<p>For boot-time issues: boot with <code>systemd.log_level=debug</code> on the kernel cmdline, or <code>systemd.journald.forward_to_console=1</code> to see boot logs on the console when the display is broken.</p>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Units: inspection</span>
+</span></span><span style="display:flex;"><span>systemctl status &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemctl cat &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemctl show &lt;unit&gt; <span style="color:#f92672">[</span>-p Property<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>systemctl list-units <span style="color:#f92672">[</span>--all<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>--failed<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>--type<span style="color:#f92672">=</span>service<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>systemctl list-unit-files
+</span></span><span style="display:flex;"><span>systemctl list-dependencies <span style="color:#f92672">[</span>--reverse<span style="color:#f92672">]</span> &lt;unit&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Units: control</span>
+</span></span><span style="display:flex;"><span>systemctl start|stop|restart|reload &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemctl enable|disable <span style="color:#f92672">[</span>--now<span style="color:#f92672">]</span> &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemctl mask|unmask &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemctl isolate &lt;target&gt;
+</span></span><span style="display:flex;"><span>systemctl reboot|poweroff|suspend|hibernate
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Authoring</span>
+</span></span><span style="display:flex;"><span>systemctl edit &lt;unit&gt;                 <span style="color:#75715e"># drop-in override</span>
+</span></span><span style="display:flex;"><span>systemctl edit --full &lt;unit&gt;          <span style="color:#75715e"># edit copy in /etc</span>
+</span></span><span style="display:flex;"><span>systemctl revert &lt;unit&gt;                <span style="color:#75715e"># undo edits</span>
+</span></span><span style="display:flex;"><span>systemctl daemon-reload                <span style="color:#75715e"># after editing files manually</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Logs</span>
+</span></span><span style="display:flex;"><span>journalctl -u &lt;unit&gt; <span style="color:#f92672">[</span>-f<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>-b<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>--since ...<span style="color:#f92672">]</span> <span style="color:#f92672">[</span>-p err<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>journalctl -k                          <span style="color:#75715e"># kernel</span>
+</span></span><span style="display:flex;"><span>journalctl --disk-usage
+</span></span><span style="display:flex;"><span>sudo journalctl --vacuum-time<span style="color:#f92672">=</span>2weeks
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Boot analysis</span>
+</span></span><span style="display:flex;"><span>systemd-analyze
+</span></span><span style="display:flex;"><span>systemd-analyze blame
+</span></span><span style="display:flex;"><span>systemd-analyze critical-chain
+</span></span><span style="display:flex;"><span>systemd-analyze security &lt;unit&gt;
+</span></span><span style="display:flex;"><span>systemd-analyze verify &lt;unit-file&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># cgroups / resources</span>
+</span></span><span style="display:flex;"><span>systemd-cgls
+</span></span><span style="display:flex;"><span>systemd-cgtop
+</span></span><span style="display:flex;"><span>systemctl show &lt;unit&gt; -p MemoryCurrent,CPUUsageNSec
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User services</span>
+</span></span><span style="display:flex;"><span>systemctl --user ...
+</span></span><span style="display:flex;"><span>loginctl enable-linger $USER           <span style="color:#75715e"># let user services run without login</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Timers</span>
+</span></span><span style="display:flex;"><span>systemctl list-timers
+</span></span><span style="display:flex;"><span>systemd-analyze calendar <span style="color:#e6db74">&#39;&lt;expr&gt;&#39;</span>
+</span></span></code></pre></div><h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man systemd.unit</code>, <code>man systemd.service</code>, <code>man systemd.timer</code>, <code>man systemd.socket</code></strong> — the reference. Each section is tight.</li>
+<li><strong><code>man systemd.exec</code>, <code>man systemd.resource-control</code></strong> — the massive property catalogs for <code>[Service]</code>.</li>
+<li><strong><code>man systemd.directives</code></strong> — an index of every directive, pointing to its man page.</li>
+<li><strong>Lennart Poettering&rsquo;s systemd-for-admins blog series</strong> (old but foundational — explains the <em>why</em>).</li>
+<li><strong><code>systemctl cat</code> on a few vendor services</strong> — read how Fedora&rsquo;s maintainers write real units. Great pedagogy.</li>
+</ul>
+<p>The mental model to carry away: <strong>systemd is a dependency-resolving state engine over typed units, with cgroup-based process tracking, a unified log stream, and D-Bus as the control plane.</strong> Learn to read and write units, learn the service/timer/socket trio, get fluent with <code>systemctl status</code> and <code>journalctl -u</code>, and the rest unfolds naturally. Most mysteries on a modern Linux box dissolve into a five-second <code>systemctl status</code> away.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

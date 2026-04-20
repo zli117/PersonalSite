@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>DBus | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="What D-Bus is and why it exists
+By the early 2000s, Linux desktops had a problem: every component needed to talk to every other component. The screensaver needed to know when you&rsquo;re idle. The volume applet needed to ask PulseAudio for the current level. The network applet needed to talk to whatever managed networking. The media player needed to inhibit screen lock during video playback.
+What existed: CORBA (heavyweight and hated), ad-hoc Unix sockets (everyone rolled their own protocol), X11 atoms (abused as IPC), DCOP in KDE and Bonobo in GNOME (desktop-specific, incompatible). Every component pair invented or picked their own IPC.">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/d_bus/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/d_bus/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      DBus
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 20:55:22 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/drm_kms/">
+    <small>← Previous</small>
+    <span>DRM/KMS</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/overview/">
+    <small>Next →</small>
+    <span>Chapter 0: A map of desktop Linux</span>
+  </a></nav>
+  <div class="post-content"><h2 id="what-d-bus-is-and-why-it-exists">What D-Bus is and why it exists<a hidden class="anchor" aria-hidden="true" href="#what-d-bus-is-and-why-it-exists">#</a></h2>
+<p>By the early 2000s, Linux desktops had a problem: every component needed to talk to every other component. The screensaver needed to know when you&rsquo;re idle. The volume applet needed to ask PulseAudio for the current level. The network applet needed to talk to whatever managed networking. The media player needed to inhibit screen lock during video playback.</p>
+<p>What existed: CORBA (heavyweight and hated), ad-hoc Unix sockets (everyone rolled their own protocol), X11 atoms (abused as IPC), DCOP in KDE and Bonobo in GNOME (desktop-specific, incompatible). Every component pair invented or picked their own IPC.</p>
+<p><strong>D-Bus</strong> (started 2002 as a freedesktop.org project) proposed: one message-passing bus that any process can join, with a standard protocol, standard type system, and a broker that routes messages by well-known names. Lightweight enough for desktop use, structured enough for system services, language-agnostic via bindings.</p>
+<p>The bet paid off. Today D-Bus is how:</p>
+<ul>
+<li><code>systemctl</code> talks to PID 1 (<code>org.freedesktop.systemd1</code>)</li>
+<li><code>nmcli</code> talks to NetworkManager (<code>org.freedesktop.NetworkManager</code>)</li>
+<li><code>bluetoothctl</code> talks to BlueZ (<code>org.bluez</code>)</li>
+<li>Your desktop talks to UPower, [[logind]], fwupd, colord, gnome-shell, KWin&hellip;</li>
+<li>[[Polkit]] enforces privilege policies for all of the above</li>
+</ul>
+<p><strong>D-Bus is not:</strong></p>
+<ul>
+<li>A network protocol — it&rsquo;s local IPC (though there&rsquo;s dbus-broker-over-TCP for weird cases, rarely used).</li>
+<li>A high-performance transport — for bulk data (audio, video frames), use shared memory or direct sockets.</li>
+<li>A service discovery protocol — it&rsquo;s a message bus with well-known names, not Zeroconf.</li>
+</ul>
+<h2 id="the-core-architecture">The core architecture<a hidden class="anchor" aria-hidden="true" href="#the-core-architecture">#</a></h2>
+<pre tabindex="0"><code>  ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+  │  systemctl    │    │ NetworkMgr    │    │  bluetoothctl │
+  │  (client)     │    │  (service)    │    │   (client)    │
+  └───────┬───────┘    └───────┬───────┘    └───────┬───────┘
+          │ Unix socket        │                    │
+          │ (auth + framing)   │                    │
+          └────────┬───────────┴────────────────────┘
+                   ▼
+          ┌─────────────────┐
+          │  dbus-broker    │    ← routes messages by name/path/interface
+          │  (the bus)      │
+          └────────┬────────┘
+                   ▲
+                   │
+          ┌────────┴────────┐
+          │    systemd      │
+          │    BlueZ        │
+          │    ...          │
+          └─────────────────┘
+</code></pre><p><strong>The broker.</strong> One daemon process that every D-Bus participant connects to. It routes messages: &ldquo;deliver this method call to whoever owns the name <code>org.freedesktop.NetworkManager</code>.&rdquo; Modern Fedora runs <code>dbus-broker</code> (Red Hat&rsquo;s reimplementation, faster); traditional systems run the reference <code>dbus-daemon</code>. Wire protocol is identical.</p>
+<p><strong>Two buses per system, usually:</strong></p>
+<ul>
+<li><strong>System bus</strong> — one instance, root-privileged, for system services. Socket at <code>/run/dbus/system_bus_socket</code>. NetworkManager, systemd, BlueZ, UPower, firewalld live here.</li>
+<li><strong>Session bus</strong> — one per logged-in user session, for desktop apps. Socket at <code>$XDG_RUNTIME_DIR/bus</code> (typically <code>/run/user/&lt;uid&gt;/bus</code>). GNOME Shell, notifications, media player controls, window manager extensions live here.</li>
+</ul>
+<p>Why two: security boundaries. Session bus talks on behalf of your user; system bus requires careful policy to let unprivileged users poke at root-owned services (this is where polkit comes in).</p>
+<p>You can create <strong>private buses</strong> too, scoped to a container, a test harness, or a specific application. Every bus is just a dbus-broker listening on a socket; which one you connect to is up to you (env var <code>DBUS_SESSION_BUS_ADDRESS</code>, etc.).</p>
+<h2 id="the-object-model">The object model<a hidden class="anchor" aria-hidden="true" href="#the-object-model">#</a></h2>
+<p>D-Bus exposes services using four layers of identifier, nested like a filesystem-plus-namespacing scheme:</p>
+<pre tabindex="0"><code>  Bus name:        org.freedesktop.NetworkManager           ← &#34;who&#34;
+  Object path:     /org/freedesktop/NetworkManager/Devices/2   ← &#34;what&#34;
+  Interface:       org.freedesktop.NetworkManager.Device     ← &#34;which API&#34;
+  Member:          State (property), Disconnect() (method), StateChanged (signal)   ← &#34;which operation&#34;
+</code></pre><p>Stepping through each:</p>
+<p><strong>1. Bus name</strong> — who owns this endpoint. Two flavors:</p>
+<ul>
+<li><strong>Well-known names</strong> like <code>org.freedesktop.NetworkManager</code> — services claim these by name, clients address them by name. Reverse-DNS convention to avoid collisions.</li>
+<li><strong>Unique names</strong> like <code>:1.42</code> — every connection to the bus gets one automatically, assigned by the broker. Services own well-known names <em>in addition to</em> their unique name.</li>
+</ul>
+<p>When you send a message to <code>org.freedesktop.NetworkManager</code>, the broker looks up who currently owns that well-known name and forwards to their unique connection.</p>
+<p><strong>2. Object path</strong> — which object within the service. Paths look like filesystem paths but they&rsquo;re just namespacing. A service exposes many objects: NetworkManager has <code>/org/freedesktop/NetworkManager</code> (the manager itself), <code>/org/freedesktop/NetworkManager/Devices/0</code>, <code>/1</code>, <code>/2</code> (each device), <code>/Settings</code>, and so on.</p>
+<p><strong>3. Interface</strong> — which named API you&rsquo;re using. An object can implement multiple interfaces. A NetworkManager device object implements <code>org.freedesktop.NetworkManager.Device</code> (the base) plus <code>org.freedesktop.NetworkManager.Device.Wireless</code> (if it&rsquo;s a WiFi device) plus the standard ones <code>org.freedesktop.DBus.Properties</code>, <code>org.freedesktop.DBus.Introspectable</code>, <code>org.freedesktop.DBus.Peer</code>.</p>
+<p><strong>4. Member</strong> — the specific thing you&rsquo;re operating on. Three member kinds:</p>
+<ul>
+<li><strong>Methods</strong> — call-and-reply. <code>Disconnect()</code>, <code>GetDevices()</code>, <code>ActivateConnection(settings, device, specific_object)</code>. Synchronous from the protocol&rsquo;s perspective (you get a reply or an error).</li>
+<li><strong>Properties</strong> — typed named values. <code>State</code>, <code>Ipv4Address</code>, <code>Managed</code>. Read via the standard <code>org.freedesktop.DBus.Properties.Get</code> method; changes emit a <code>PropertiesChanged</code> signal.</li>
+<li><strong>Signals</strong> — broadcasts. <code>StateChanged(oldState, newState)</code>, <code>DeviceAdded(path)</code>. No reply expected. Clients subscribe to signals they care about.</li>
+</ul>
+<p>The combination <code>(bus name, object path, interface, member)</code> uniquely addresses any operation.</p>
+<h2 id="the-standard-interfaces">The standard interfaces<a hidden class="anchor" aria-hidden="true" href="#the-standard-interfaces">#</a></h2>
+<p>Every D-Bus object is expected to implement a few standard interfaces:</p>
+<ul>
+<li><code>org.freedesktop.DBus.Introspectable</code> — <code>Introspect()</code> returns XML describing the object&rsquo;s interfaces and members. This is how tools like <code>busctl introspect</code> learn what&rsquo;s available without prior knowledge.</li>
+<li><code>org.freedesktop.DBus.Properties</code> — <code>Get(interface, prop)</code>, <code>Set(interface, prop, value)</code>, <code>GetAll(interface)</code>, plus the <code>PropertiesChanged</code> signal.</li>
+<li><code>org.freedesktop.DBus.Peer</code> — <code>Ping()</code>, <code>GetMachineId()</code>. Lightweight liveness.</li>
+<li><code>org.freedesktop.DBus.ObjectManager</code> (optional, on container objects) — <code>GetManagedObjects()</code>, <code>InterfacesAdded</code>, <code>InterfacesRemoved</code>. Lets a client enumerate a service&rsquo;s whole object tree in one call and subscribe to add/remove signals.</li>
+</ul>
+<p>The ObjectManager pattern is important: instead of every service inventing a &ldquo;list my devices&rdquo; method, services that manage a collection implement ObjectManager at some root path, and clients use the standard methods to enumerate and watch.</p>
+<h2 id="the-type-system">The type system<a hidden class="anchor" aria-hidden="true" href="#the-type-system">#</a></h2>
+<p>D-Bus is strongly typed. Every message&rsquo;s arguments and return values have declared types using single-character codes:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Code</th>
+          <th>Type</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>y</code></td>
+          <td>BYTE</td>
+      </tr>
+      <tr>
+          <td><code>b</code></td>
+          <td>BOOLEAN</td>
+      </tr>
+      <tr>
+          <td><code>n</code> / <code>q</code></td>
+          <td>INT16 / UINT16</td>
+      </tr>
+      <tr>
+          <td><code>i</code> / <code>u</code></td>
+          <td>INT32 / UINT32</td>
+      </tr>
+      <tr>
+          <td><code>x</code> / <code>t</code></td>
+          <td>INT64 / UINT64</td>
+      </tr>
+      <tr>
+          <td><code>d</code></td>
+          <td>DOUBLE</td>
+      </tr>
+      <tr>
+          <td><code>s</code></td>
+          <td>STRING (UTF-8)</td>
+      </tr>
+      <tr>
+          <td><code>o</code></td>
+          <td>OBJECT PATH</td>
+      </tr>
+      <tr>
+          <td><code>g</code></td>
+          <td>SIGNATURE (a type code string)</td>
+      </tr>
+      <tr>
+          <td><code>v</code></td>
+          <td>VARIANT (any type, self-describing)</td>
+      </tr>
+      <tr>
+          <td><code>a&lt;T&gt;</code></td>
+          <td>ARRAY of T</td>
+      </tr>
+      <tr>
+          <td><code>(TT...)</code></td>
+          <td>STRUCT</td>
+      </tr>
+      <tr>
+          <td><code>a{KV}</code></td>
+          <td>DICT (really array of key-value pairs)</td>
+      </tr>
+      <tr>
+          <td><code>h</code></td>
+          <td>UNIX FD (file descriptor)</td>
+      </tr>
+  </tbody>
+</table>
+<p>So <code>a{sv}</code> is a dictionary from string to variant — the ubiquitous &ldquo;properties dict&rdquo; pattern. <code>ao</code> is an array of object paths. <code>(si)</code> is a struct of string and int32.</p>
+<p>You&rsquo;ll see signatures in introspection XML and in tool output:</p>
+<pre tabindex="0"><code>method org.fd.NM.ActivateConnection(ooo) -&gt; o
+#                                    ^^^    ^
+#           connection path, device path, specific object path → activation path
+</code></pre><h2 id="hands-on-inspecting-whats-on-the-bus">Hands-on: inspecting what&rsquo;s on the bus<a hidden class="anchor" aria-hidden="true" href="#hands-on-inspecting-whats-on-the-bus">#</a></h2>
+<p>The <code>busctl</code> tool (from [[systemd]]) is the friendliest modern D-Bus explorer. <code>dbus-send</code> is the classical alternative; <code>gdbus</code> ships with GLib.</p>
+<p><strong>Who&rsquo;s on the bus:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl list                                 <span style="color:#75715e"># system bus services</span>
+</span></span><span style="display:flex;"><span>busctl --user list                          <span style="color:#75715e"># session bus services</span>
+</span></span></code></pre></div><p>You&rsquo;ll see rows like:</p>
+<pre tabindex="0"><code>NAME                                TYPE  PID  PROCESS          USER
+org.freedesktop.NetworkManager      -     987  NetworkManager   root
+org.freedesktop.systemd1            -     1    systemd          root
+org.bluez                           -     1234 bluetoothd       root
+:1.42                               -     1234 bluetoothd       root     ← unique name
+</code></pre><p>The dashes under TYPE mean &ldquo;activatable on demand if called&rdquo; vs <code>activatable</code> / <code>running</code> hints in some outputs.</p>
+<p><strong>Explore a service&rsquo;s object tree:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl tree org.freedesktop.NetworkManager
+</span></span></code></pre></div><pre tabindex="0"><code>└─ /org
+  └─ /org/freedesktop
+    └─ /org/freedesktop/NetworkManager
+      ├─ /org/freedesktop/NetworkManager/ActiveConnection
+      │ └─ /org/freedesktop/NetworkManager/ActiveConnection/1
+      ├─ /org/freedesktop/NetworkManager/Devices
+      │ ├─ /org/freedesktop/NetworkManager/Devices/1
+      │ ├─ /org/freedesktop/NetworkManager/Devices/2
+      │ └─ /org/freedesktop/NetworkManager/Devices/3
+      └─ /org/freedesktop/NetworkManager/Settings
+</code></pre><p><strong>Introspect a specific object</strong> — see what interfaces and members it exposes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl introspect org.freedesktop.NetworkManager /org/freedesktop/NetworkManager/Devices/2
+</span></span></code></pre></div><pre tabindex="0"><code>NAME                                TYPE      SIGNATURE RESULT/VALUE
+org.freedesktop.NetworkManager.Device interface -        -
+.Disconnect                         method    -         -
+.Reapply                            method    a{sa{sv}}ut -
+.ActiveConnection                   property  o         &#34;/org/freedesktop/...&#34;
+.Interface                          property  s         &#34;wlp194s0&#34;
+.State                              property  u         100
+.StateChanged                       signal    uuu       -
+</code></pre><p>You get the full API surface of the object, zero documentation needed.</p>
+<p><strong>Get a property:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl get-property org.freedesktop.NetworkManager <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  /org/freedesktop/NetworkManager/Devices/2 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  org.freedesktop.NetworkManager.Device Interface
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># s &#34;wlp194s0&#34;</span>
+</span></span></code></pre></div><p><strong>Call a method:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl call org.freedesktop.NetworkManager <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  /org/freedesktop/NetworkManager <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  org.freedesktop.NetworkManager GetDevices
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># ao 3 &#34;/org/freedesktop/NetworkManager/Devices/1&#34; &#34;/org/freedesktop/NetworkManager/Devices/2&#34; ...</span>
+</span></span></code></pre></div><p>Format: <code>busctl call &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;method&gt; [signature args...]</code>.</p>
+<p><strong>Watch signals and method calls live</strong> — invaluable for debugging:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl monitor org.freedesktop.NetworkManager
+</span></span></code></pre></div><p>Everything going to or from NetworkManager streams by in real time. Kill WiFi, reconnect, click around in the network applet — you&rsquo;ll see the whole dance.</p>
+<p>Plain <code>busctl monitor</code> watches all messages on the bus, very verbose.</p>
+<h2 id="hands-on-a-concrete-walkthrough">Hands-on: a concrete walkthrough<a hidden class="anchor" aria-hidden="true" href="#hands-on-a-concrete-walkthrough">#</a></h2>
+<p>Let&rsquo;s say you want to see your laptop&rsquo;s battery level and watch it change over time.</p>
+<p><strong>Find the relevant service:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl list | grep -i power
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># org.freedesktop.UPower  ...</span>
+</span></span></code></pre></div><p><strong>Explore its tree:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl tree org.freedesktop.UPower
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># └─ /org/freedesktop/UPower</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   ├─ /org/freedesktop/UPower/devices</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   │ ├─ /org/freedesktop/UPower/devices/battery_BAT0</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   │ ├─ /org/freedesktop/UPower/devices/line_power_AC</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#   │ └─ /org/freedesktop/UPower/devices/DisplayDevice</span>
+</span></span></code></pre></div><p><strong>Introspect the battery:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl introspect org.freedesktop.UPower /org/freedesktop/UPower/devices/battery_BAT0
+</span></span></code></pre></div><p>Lots of output. Notable properties: <code>Percentage</code>, <code>State</code>, <code>TimeToEmpty</code>, <code>TimeToFull</code>, <code>EnergyRate</code>.</p>
+<p><strong>Read a property:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl get-property org.freedesktop.UPower <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  /org/freedesktop/UPower/devices/battery_BAT0 <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  org.freedesktop.UPower.Device Percentage
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># d 73.0</span>
+</span></span></code></pre></div><p><strong>Watch for changes</strong> — UPower emits <code>PropertiesChanged</code> via the standard interface:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl monitor org.freedesktop.UPower
+</span></span></code></pre></div><p>Unplug AC or plug it in, percentages ticking, and you see signals like:</p>
+<pre tabindex="0"><code>Type=signal ... Interface=org.freedesktop.DBus.Properties Member=PropertiesChanged
+  string &#34;org.freedesktop.UPower.Device&#34;
+  array of dict entry(string, variant) {
+    &#34;Percentage&#34; -&gt; variant double 72.0
+    &#34;State&#34; -&gt; variant uint32 2
+    ...
+  }
+</code></pre><p>This same pattern applies to <em>everything</em> on D-Bus. List services, pick one, introspect, call or watch. Once you know the rhythm, most system services become directly scriptable.</p>
+<h2 id="service-activation">Service activation<a hidden class="anchor" aria-hidden="true" href="#service-activation">#</a></h2>
+<p>Services don&rsquo;t have to be running for clients to address them. If a client sends a method call to <code>org.freedesktop.NetworkManager</code> and nobody owns that name yet, the broker checks its <strong>service files</strong> (<code>.service</code> files under <code>/usr/share/dbus-1/system-services/</code> and <code>/usr/share/dbus-1/services/</code>) — each declares a well-known name and how to start the service.</p>
+<p>If found, the broker starts the service (or asks systemd to), waits for it to claim the name, then delivers the message. This is <strong>D-Bus activation</strong>, analogous to systemd&rsquo;s socket activation but for D-Bus services.</p>
+<p>Combined with <code>Type=dbus</code> in a systemd unit, you get: &ldquo;service starts when anyone on D-Bus tries to talk to it, stops when idle, transparent to clients.&rdquo;</p>
+<h2 id="signals-and-subscriptions">Signals and subscriptions<a hidden class="anchor" aria-hidden="true" href="#signals-and-subscriptions">#</a></h2>
+<p>Signals are broadcasts — the sender fires and forgets; the broker routes them to any connections that have added a matching rule. Unlike method calls, signals have no reply.</p>
+<p>To receive signals, a client adds a <strong>match rule</strong> describing which signals it cares about:</p>
+<pre tabindex="0"><code>type=&#39;signal&#39;,interface=&#39;org.freedesktop.NetworkManager&#39;,member=&#39;StateChanged&#39;
+</code></pre><p>Match rules can filter on sender, interface, member, path, arguments. Clients typically use bindings that hide this — <code>gdbus monitor</code>, GLib&rsquo;s <code>g_dbus_connection_signal_subscribe</code>, Python&rsquo;s <code>dbus-next.add_message_handler</code>.</p>
+<p><code>busctl monitor &lt;service&gt;</code> adds a broad match rule behind the scenes.</p>
+<h2 id="security-polkit-and-the-privilege-boundary">Security: polkit and the privilege boundary<a hidden class="anchor" aria-hidden="true" href="#security-polkit-and-the-privilege-boundary">#</a></h2>
+<p>Here&rsquo;s the tricky problem. System services on the system bus run as root. Ordinary users need to invoke some of their methods (e.g., connect to WiFi, suspend the machine, mount a disk) but not others (e.g., shut down the system from a screenshare attendee&rsquo;s account).</p>
+<p><strong>Polkit</strong> (formerly PolicyKit) is the solution. When a user calls a method on a privileged service, the service asks polkit: &ldquo;is this user allowed to do X?&rdquo; Polkit consults rule files, possibly prompts the user for authentication via an agent (GNOME&rsquo;s polkit dialog, KDE&rsquo;s equivalent, or a terminal <code>pkexec</code> prompt), and replies allow/deny.</p>
+<p>The call chain:</p>
+<pre tabindex="0"><code>nmcli (unprivileged)
+  → D-Bus system bus
+  → NetworkManager (root)
+  → polkit: &#34;may UID 1000 call ActivateConnection for admin-only profile?&#34;
+  → polkit checks /usr/share/polkit-1/actions/*.policy and /etc/polkit-1/rules.d/*.rules
+  → polkit may invoke polkit-agent in user&#39;s session to prompt for password
+  → allow / deny
+  → NetworkManager proceeds or returns AuthorizationFailed
+</code></pre><p>Polkit rules are JavaScript (controversial choice, but flexible). System-wide rules live in <code>/usr/share/polkit-1/actions/*.policy</code> (vendor-declared actions) and <code>/etc/polkit-1/rules.d/*.rules</code> (admin overrides).</p>
+<p>Example rule — let anyone in the <code>wheel</code> group suspend without password:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-javascript" data-lang="javascript"><span style="display:flex;"><span><span style="color:#75715e">// /etc/polkit-1/rules.d/49-nopasswd-suspend.rules
+</span></span></span><span style="display:flex;"><span><span style="color:#a6e22e">polkit</span>.<span style="color:#a6e22e">addRule</span>(<span style="color:#66d9ef">function</span>(<span style="color:#a6e22e">action</span>, <span style="color:#a6e22e">subject</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">action</span>.<span style="color:#a6e22e">id</span> <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;org.freedesktop.login1.suspend&#34;</span> <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#a6e22e">subject</span>.<span style="color:#a6e22e">isInGroup</span>(<span style="color:#e6db74">&#34;wheel&#34;</span>)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#a6e22e">polkit</span>.<span style="color:#a6e22e">Result</span>.<span style="color:#a6e22e">YES</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>});
+</span></span></code></pre></div><p>See what actions a service declares:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>ls /usr/share/polkit-1/actions/
+</span></span><span style="display:flex;"><span>pkaction --verbose --action-id org.freedesktop.NetworkManager.network-control
+</span></span></code></pre></div><h2 id="d-bus-in-practice-three-patterns">D-Bus in practice: three patterns<a hidden class="anchor" aria-hidden="true" href="#d-bus-in-practice-three-patterns">#</a></h2>
+<p><strong>1. The service and its clients.</strong> You write a daemon that owns a well-known name, exposes objects, accepts method calls, emits signals. Clients (other daemons, GUIs, CLIs) connect and interact. This is how NetworkManager, BlueZ, UPower, systemd itself are built.</p>
+<p><strong>2. The control-plane pattern.</strong> Something complex is happening (systemd managing units, NetworkManager managing connections, BlueZ managing devices). D-Bus is the control plane — the API other components use to drive it. The data plane (actual packets, audio frames, disk I/O) bypasses D-Bus entirely; D-Bus is for coordination and state.</p>
+<p><strong>3. The portal pattern.</strong> Flatpak apps run sandboxed and can&rsquo;t directly touch the filesystem or hardware. Instead, they call <strong>xdg-desktop-portal</strong> over the session bus, which mediates access (showing &ldquo;this app wants to open a file&rdquo; dialogs, etc.). This is how modern Linux sandboxing works — D-Bus is the only channel out of the sandbox, with the portal enforcing policy.</p>
+<h2 id="tutorial-writing-a-tiny-d-bus-service">Tutorial: writing a tiny D-Bus service<a hidden class="anchor" aria-hidden="true" href="#tutorial-writing-a-tiny-d-bus-service">#</a></h2>
+<p>Let&rsquo;s build a minimal session-bus service in Python that exposes a greeter, then call it from another process. Uses the <code>dbus-next</code> library (async, modern).</p>
+<p><strong>Install:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>pip install --user dbus-next
+</span></span></code></pre></div><p><strong>Server</strong> (<code>greeter-server.py</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> asyncio
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> dbus_next.aio <span style="color:#f92672">import</span> MessageBus
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> dbus_next.service <span style="color:#f92672">import</span> ServiceInterface, method, signal
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> dbus_next <span style="color:#f92672">import</span> BusType
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Greeter</span>(ServiceInterface):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">__init__</span>(self):
+</span></span><span style="display:flex;"><span>        super()<span style="color:#f92672">.</span><span style="color:#a6e22e">__init__</span>(<span style="color:#e6db74">&#39;com.example.Greeter&#39;</span>)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">@method</span>()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">Hello</span>(self, name: <span style="color:#e6db74">&#39;s&#39;</span>) <span style="color:#f92672">-&gt;</span> <span style="color:#e6db74">&#39;s&#39;</span>:
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>_count <span style="color:#f92672">+=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>GreetingSent(name)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#e6db74">f</span><span style="color:#e6db74">&#39;Hello, </span><span style="color:#e6db74">{</span>name<span style="color:#e6db74">}</span><span style="color:#e6db74">!&#39;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">@signal</span>()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">GreetingSent</span>(self, name: <span style="color:#e6db74">&#39;s&#39;</span>) <span style="color:#f92672">-&gt;</span> <span style="color:#e6db74">&#39;s&#39;</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> name
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">main</span>():
+</span></span><span style="display:flex;"><span>    bus <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> MessageBus(bus_type<span style="color:#f92672">=</span>BusType<span style="color:#f92672">.</span>SESSION)<span style="color:#f92672">.</span>connect()
+</span></span><span style="display:flex;"><span>    iface <span style="color:#f92672">=</span> Greeter()
+</span></span><span style="display:flex;"><span>    bus<span style="color:#f92672">.</span>export(<span style="color:#e6db74">&#39;/com/example/Greeter&#39;</span>, iface)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> bus<span style="color:#f92672">.</span>request_name(<span style="color:#e6db74">&#39;com.example.Greeter&#39;</span>)
+</span></span><span style="display:flex;"><span>    print(<span style="color:#e6db74">&#39;Service running as com.example.Greeter; Ctrl-C to stop.&#39;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> asyncio<span style="color:#f92672">.</span>Future()  <span style="color:#75715e"># run forever</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>asyncio<span style="color:#f92672">.</span>run(main())
+</span></span></code></pre></div><p>Run it:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>python greeter-server.py
+</span></span></code></pre></div><p>Now from another terminal, poke it with <code>busctl</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl --user list | grep example
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># com.example.Greeter ...</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>busctl --user introspect com.example.Greeter /com/example/Greeter
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>busctl --user call com.example.Greeter /com/example/Greeter <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>  com.example.Greeter Hello s <span style="color:#e6db74">&#34;ZL&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># s &#34;Hello, ZL!&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>busctl --user monitor com.example.Greeter &amp;
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Now call again, watch the GreetingSent signal fire</span>
+</span></span></code></pre></div><p>That&rsquo;s the whole cycle — claim a name, export an object implementing an interface, respond to calls, emit signals. The bindings handle type marshaling, dispatching, signal delivery.</p>
+<p><strong>Client</strong> (<code>greeter-client.py</code>):</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">import</span> asyncio
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> dbus_next.aio <span style="color:#f92672">import</span> MessageBus
+</span></span><span style="display:flex;"><span><span style="color:#f92672">from</span> dbus_next <span style="color:#f92672">import</span> BusType
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">async</span> <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">main</span>():
+</span></span><span style="display:flex;"><span>    bus <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> MessageBus(bus_type<span style="color:#f92672">=</span>BusType<span style="color:#f92672">.</span>SESSION)<span style="color:#f92672">.</span>connect()
+</span></span><span style="display:flex;"><span>    introspection <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> bus<span style="color:#f92672">.</span>introspect(<span style="color:#e6db74">&#39;com.example.Greeter&#39;</span>, <span style="color:#e6db74">&#39;/com/example/Greeter&#39;</span>)
+</span></span><span style="display:flex;"><span>    obj <span style="color:#f92672">=</span> bus<span style="color:#f92672">.</span>get_proxy_object(<span style="color:#e6db74">&#39;com.example.Greeter&#39;</span>, <span style="color:#e6db74">&#39;/com/example/Greeter&#39;</span>, introspection)
+</span></span><span style="display:flex;"><span>    greeter <span style="color:#f92672">=</span> obj<span style="color:#f92672">.</span>get_interface(<span style="color:#e6db74">&#39;com.example.Greeter&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Subscribe to the signal</span>
+</span></span><span style="display:flex;"><span>    greeter<span style="color:#f92672">.</span>on_greeting_sent(<span style="color:#66d9ef">lambda</span> name: print(<span style="color:#e6db74">f</span><span style="color:#e6db74">&#39;[signal] greeted: </span><span style="color:#e6db74">{</span>name<span style="color:#e6db74">}</span><span style="color:#e6db74">&#39;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Call the method</span>
+</span></span><span style="display:flex;"><span>    reply <span style="color:#f92672">=</span> <span style="color:#66d9ef">await</span> greeter<span style="color:#f92672">.</span>call_hello(<span style="color:#e6db74">&#39;world&#39;</span>)
+</span></span><span style="display:flex;"><span>    print(reply)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">await</span> asyncio<span style="color:#f92672">.</span>sleep(<span style="color:#ae81ff">1</span>)  <span style="color:#75715e"># give signal time to arrive</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>asyncio<span style="color:#f92672">.</span>run(main())
+</span></span></code></pre></div><p>In most languages, bindings turn D-Bus into &ldquo;call a method on an object&rdquo; with introspection handling the plumbing.</p>
+<h2 id="making-it-a-proper-session-service">Making it a proper session service<a hidden class="anchor" aria-hidden="true" href="#making-it-a-proper-session-service">#</a></h2>
+<p>Right now your service only exists while you run it manually. To make it <strong>activatable</strong> on the session bus:</p>
+<p><strong><code>~/.local/share/dbus-1/services/com.example.Greeter.service</code>:</strong></p>
+<pre tabindex="0"><code>[D-BUS Service]
+Name=com.example.Greeter
+Exec=/home/you/greeter-server.py
+</code></pre><p>Now <code>busctl --user call com.example.Greeter ...</code> starts the service automatically if it&rsquo;s not running. For production, back it with a proper systemd user unit (<code>Type=dbus</code>, <code>BusName=com.example.Greeter</code>) and let the bus and systemd coordinate.</p>
+<h2 id="language-bindings">Language bindings<a hidden class="anchor" aria-hidden="true" href="#language-bindings">#</a></h2>
+<p>Every mainstream language has D-Bus bindings:</p>
+<ul>
+<li><strong>C/C++</strong> — <code>libdbus</code> (reference, low-level, painful). <code>libsystemd</code>&rsquo;s <code>sd-bus</code> (much nicer, modern, also works without systemd). <code>GDBus</code> (GLib, if you&rsquo;re doing GTK anyway).</li>
+<li><strong>Python</strong> — <code>dbus-next</code> (async, pure Python, modern). <code>pydbus</code> (GLib-backed, simpler but GLib runtime). <code>dbus-python</code> (old, still works, synchronous).</li>
+<li><strong>Rust</strong> — <code>zbus</code> (pure Rust, excellent async, widely used).</li>
+<li><strong>Go</strong> — <code>godbus/dbus</code> (mature, reasonable).</li>
+<li><strong>Node.js</strong> — <code>dbus-next</code> (also the name, different package).</li>
+<li><strong>Shell</strong> — <code>busctl</code>, <code>dbus-send</code>, <code>gdbus</code> from the command line. Awkward for anything complex but fine for scripts.</li>
+</ul>
+<p><code>sd-bus</code> and <code>zbus</code> are the nicest to use. <code>libdbus</code> directly is only for legacy code.</p>
+<h2 id="debugging-the-observatory">Debugging: the observatory<a hidden class="anchor" aria-hidden="true" href="#debugging-the-observatory">#</a></h2>
+<p>When something&rsquo;s wrong, D-Bus is eminently observable.</p>
+<p><strong>Who owns what:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl list
+</span></span><span style="display:flex;"><span>busctl list --user
+</span></span></code></pre></div><p><strong>Watch specific traffic:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl monitor org.freedesktop.NetworkManager       <span style="color:#75715e"># one service</span>
+</span></span><span style="display:flex;"><span>busctl monitor                                       <span style="color:#75715e"># everything on system bus</span>
+</span></span><span style="display:flex;"><span>busctl --user monitor                                <span style="color:#75715e"># everything on session bus</span>
+</span></span><span style="display:flex;"><span>busctl capture &gt; trace.pcap                          <span style="color:#75715e"># pcap format, readable in Wireshark</span>
+</span></span></code></pre></div><p><strong>Wireshark has a D-Bus dissector</strong> — open a capture, see messages with types, signatures, and args pretty-printed. Extremely useful for chasing sporadic issues.</p>
+<p><strong>Introspect any object:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl introspect &lt;service&gt; &lt;path&gt;
+</span></span></code></pre></div><p><strong>Call methods interactively:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl call &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;method&gt; &lt;signature&gt; &lt;args&gt;
+</span></span></code></pre></div><p><strong>Check polkit decisions</strong> when a method call is mysteriously denied:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>journalctl -u polkit -f
+</span></span><span style="display:flex;"><span>pkaction --action-id &lt;id&gt; --verbose
+</span></span></code></pre></div><p><strong>Verify a specific property works:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl get-property &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;property&gt;
+</span></span></code></pre></div><h2 id="performance-and-limits">Performance and limits<a hidden class="anchor" aria-hidden="true" href="#performance-and-limits">#</a></h2>
+<p>D-Bus is not high-throughput. The broker routes every message, so there&rsquo;s double the socket I/O of a direct connection, plus message marshaling. Rough ballparks:</p>
+<ul>
+<li>Fine for thousands of calls per second.</li>
+<li>Not fine for audio samples, video frames, or bulk file transfers. Send a file descriptor (<code>h</code> type) and communicate out-of-band.</li>
+<li>Message size is capped (~128 MB default, often lower in practice). Big payloads should go through shm, files, or fd passing.</li>
+</ul>
+<p>Modern <code>dbus-broker</code> is substantially faster than the old <code>dbus-daemon</code>, but the design is still optimized for control plane, not data plane.</p>
+<p><strong>Fd passing</strong> is a killer feature: you can send an open file descriptor over D-Bus as an <code>h</code> arg, and the receiver gets a dup of it. This is how PipeWire negotiates audio streams, how portals hand opened files to sandboxed apps, etc. Setup happens over D-Bus; the data flow goes through the fd directly, bypassing the bus.</p>
+<h2 id="things-that-trip-people-up">Things that trip people up<a hidden class="anchor" aria-hidden="true" href="#things-that-trip-people-up">#</a></h2>
+<p><strong>Confusing buses.</strong> <code>busctl</code> defaults to the system bus; <code>busctl --user</code> uses session. If a service you expect isn&rsquo;t showing up, check both. Apps running under Flatpak may not see your session bus at all without portal plumbing.</p>
+<p><strong>Activation silence.</strong> A method call against a non-running, non-activatable service just hangs until timeout. If nothing&rsquo;s happening, check that the service file exists and the <code>Exec=</code> is correct.</p>
+<p><strong>Type mismatches.</strong> Passing <code>i</code> where <code>u</code> is expected (int32 vs uint32) fails with a signature error. Bindings usually help; raw <code>busctl call</code> requires precision.</p>
+<p><strong>Race conditions with signals.</strong> Subscribe <em>before</em> you call the method that triggers the signal, or you may miss it. Good bindings provide &ldquo;subscribe and get current state&rdquo; helpers to avoid this.</p>
+<p><strong>Polkit cache.</strong> Polkit caches auth decisions for a short window. If you change a rule and test, expect some confusion — <code>systemctl restart polkit</code> to force a flush.</p>
+<p><strong>Name squatting.</strong> Only one connection can own a well-known name at a time. If you start your service and get &ldquo;Connection :1.42 is not allowed to own the service&rdquo;, either the policy (<code>/etc/dbus-1/system.d/*.conf</code>) forbids it, or someone else already owns it.</p>
+<p><strong>Privilege assumptions.</strong> Services on the <em>system bus</em> need D-Bus policy XML files (<code>/usr/share/dbus-1/system.d/*.conf</code>) allowing the right users to talk to them. Session bus services don&rsquo;t need this — anyone in the session can talk to anyone else in the session.</p>
+<h2 id="the-bigger-picture">The bigger picture<a hidden class="anchor" aria-hidden="true" href="#the-bigger-picture">#</a></h2>
+<p>A way to see D-Bus: it&rsquo;s the <strong>control plane of the Linux desktop and service ecosystem</strong>. Most coordination between system services — who&rsquo;s connected to WiFi, is the lid closed, is the user idle, did a Bluetooth device just pair, is fwupd in the middle of a firmware update — flows through D-Bus. Most introspection tools and integrations are D-Bus clients.</p>
+<p>This means <strong>learning D-Bus gives you direct access to most of the system&rsquo;s live state.</strong> Scripting idiomatic solutions on modern Linux often means: find the right service, call the right method. Want to suspend programmatically? <code>busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager Suspend b true</code>. Want a notification? <code>busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications ...</code>. Want to know network state? Read properties from NetworkManager.</p>
+<p>It&rsquo;s the universal joint connecting daemons, desktops, and users.</p>
+<h2 id="quick-reference-card">Quick reference card<a hidden class="anchor" aria-hidden="true" href="#quick-reference-card">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># Inspection</span>
+</span></span><span style="display:flex;"><span>busctl list                              <span style="color:#75715e"># system bus services</span>
+</span></span><span style="display:flex;"><span>busctl --user list                       <span style="color:#75715e"># session bus services</span>
+</span></span><span style="display:flex;"><span>busctl tree &lt;service&gt;                    <span style="color:#75715e"># object tree</span>
+</span></span><span style="display:flex;"><span>busctl introspect &lt;service&gt; &lt;path&gt;       <span style="color:#75715e"># interfaces + members of an object</span>
+</span></span><span style="display:flex;"><span>busctl status &lt;service&gt;                  <span style="color:#75715e"># PID, owner, credentials</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Property access</span>
+</span></span><span style="display:flex;"><span>busctl get-property &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;property&gt;
+</span></span><span style="display:flex;"><span>busctl set-property &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;property&gt; &lt;sig&gt; &lt;value&gt;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Method call</span>
+</span></span><span style="display:flex;"><span>busctl call &lt;service&gt; &lt;path&gt; &lt;interface&gt; &lt;method&gt; <span style="color:#f92672">[</span>&lt;sig&gt; &lt;args...&gt;<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Signal monitoring</span>
+</span></span><span style="display:flex;"><span>busctl monitor <span style="color:#f92672">[</span>&lt;service&gt;<span style="color:#f92672">]</span>               <span style="color:#75715e"># live traffic</span>
+</span></span><span style="display:flex;"><span>busctl capture &gt; trace.pcap              <span style="color:#75715e"># pcap for Wireshark</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># User bus (same commands with --user)</span>
+</span></span><span style="display:flex;"><span>busctl --user ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Polkit</span>
+</span></span><span style="display:flex;"><span>pkaction                                  <span style="color:#75715e"># list actions</span>
+</span></span><span style="display:flex;"><span>pkaction --action-id &lt;id&gt; --verbose
+</span></span><span style="display:flex;"><span>pkcheck --action-id &lt;id&gt; --process &lt;pid&gt;  <span style="color:#75715e"># test authorization</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Service registration (declarative)</span>
+</span></span><span style="display:flex;"><span>/usr/share/dbus-1/system-services/*.service    <span style="color:#75715e"># system-bus activatable services</span>
+</span></span><span style="display:flex;"><span>/usr/share/dbus-1/services/*.service           <span style="color:#75715e"># session-bus activatable services</span>
+</span></span><span style="display:flex;"><span>/etc/dbus-1/system.d/*.conf                    <span style="color:#75715e"># system-bus policy</span>
+</span></span></code></pre></div><h2 id="where-to-learn-more">Where to learn more<a hidden class="anchor" aria-hidden="true" href="#where-to-learn-more">#</a></h2>
+<ul>
+<li><strong><code>man busctl</code>, <code>man sd-bus</code></strong> — terse, accurate.</li>
+<li><strong><code>dbus-daemon(1)</code>, <code>dbus-broker(1)</code></strong> — the brokers.</li>
+<li><strong>freedesktop.org D-Bus spec</strong> — <code>https://dbus.freedesktop.org/doc/dbus-specification.html</code>. Longer than it looks; the first quarter is enough to understand everything above. The rest covers wire protocol details you&rsquo;ll never write by hand.</li>
+<li><strong>NetworkManager and systemd D-Bus APIs</strong> — read their introspection XML in <code>/usr/share/dbus-1/interfaces/</code> or via <code>busctl introspect</code>. Great real-world examples of interface design.</li>
+<li><strong>zbus Rust docs</strong> — one of the best-written D-Bus binding docs out there, explains concepts clearly even if you&rsquo;re not using Rust.</li>
+</ul>
+<p>The mental model to carry: <strong>D-Bus is a broker-mediated message bus with typed addressing (bus name, object path, interface, member), supporting method calls, properties, and signals, plus on-demand service activation and standardized introspection.</strong> Once you can <code>busctl tree</code> and <code>busctl introspect</code> any service and know what you&rsquo;re looking at, the Linux control plane is legible end to end.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/drm_kms/">
+    <small>← Previous</small>
+    <span>DRM/KMS</span>
+  </a><a class="chapter-nav-next" href="/posts/linux_anatomy/overview/">
+    <small>Next →</small>
+    <span>Chapter 0: A map of desktop Linux</span>
+  </a></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

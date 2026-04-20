@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Chapter 0: A map of desktop Linux | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="A modern Linux desktop is a working compromise between forty years of Unix tradition, thirty years of X11, twenty years of D-Bus-era coordination, and a decade or so of Wayland&rsquo;s attempt to start fresh. When you press the power button on your laptop and a graphical login screen appears fifteen seconds later, a cast of several dozen independent projects — kernel drivers going back to the 90s, protocols redesigned in 2008, config models introduced in 2011, a display server first sketched in 2012, a session tracker ratified in 2015 — briefly cohere into something that looks, to a user, like one operating system.">
+<meta name="author" content="Cluade &amp; Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/linux_anatomy/overview/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.2ada933b2b1e34204767d2651951c1b31284365e54b257490b751acf677022ed.css" integrity="sha256-KtqTOyseNCBHZ9JlGVHBsxKENl5UsldJC3Uaz2dwIu0=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/linux_anatomy/overview/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Chapter 0: A map of desktop Linux
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 20:47:34 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Cluade &amp; Zonglin Li</span>
+
+</div>
+  </header> <nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/d_bus/">
+    <small>← Previous</small>
+    <span>DBus</span>
+  </a><span class="chapter-nav-spacer"></span></nav>
+  <div class="post-content"><p>A modern Linux desktop is a working compromise between forty years of Unix tradition, thirty years of X11, twenty years of D-Bus-era coordination, and a decade or so of Wayland&rsquo;s attempt to start fresh. When you press the power button on your laptop and a graphical login screen appears fifteen seconds later, a cast of several dozen independent projects — kernel drivers going back to the 90s, protocols redesigned in 2008, config models introduced in 2011, a display server first sketched in 2012, a session tracker ratified in 2015 — briefly cohere into something that looks, to a user, like one operating system.</p>
+<p>This series is a map of that cohering. It&rsquo;s for people who use this system every day and have the vague sense that they don&rsquo;t quite understand how it actually works.</p>
+<h2 id="who-this-is-for">Who this is for<a hidden class="anchor" aria-hidden="true" href="#who-this-is-for">#</a></h2>
+<p>You&rsquo;ve been using desktop Linux for a while. You&rsquo;re comfortable in a terminal. You can install packages, edit config files, write shell scripts, follow a stack trace, read a man page. You&rsquo;ve heard — probably typed, probably debugged — words like <code>systemd</code>, <code>udev</code>, <code>D-Bus</code>, <code>PAM</code>, <code>polkit</code>, <code>NetworkManager</code>, <code>Wayland</code>, <code>cgroups</code>, <code>sysfs</code>. You know they exist.</p>
+<p>But if someone asked you to explain how they fit together — what happens between the power button and the desktop, who&rsquo;s talking to whom over what protocol, why your WiFi works before you log in, why <code>sudo systemctl</code> prompts you differently than clicking &ldquo;Restart&rdquo; in the GNOME menu — you&rsquo;d probably wave your hands. You know the pieces. You don&rsquo;t have the picture.</p>
+<p>This series is for that gap. It&rsquo;s not an introduction to Linux. It&rsquo;s not a tutorial on any specific tool. It&rsquo;s a systematic walk through the layers of a desktop Linux system, with enough depth at each layer to build a durable mental model — and enough hands-on detail that you can verify everything on your own machine.</p>
+<p>The target is the fluent user who wants to become a comfortable systems thinker about the OS they already use.</p>
+<h2 id="the-stack-has-a-history-and-it-matters">The stack has a history, and it matters<a hidden class="anchor" aria-hidden="true" href="#the-stack-has-a-history-and-it-matters">#</a></h2>
+<p>Most explanations of Linux pretend the system is timeless: here is how systemd works, here is how Wayland works, treat them as given. This is a lie that makes things harder to learn. Every component in this stack exists as a response to something that came before. Understanding systemd without knowing what SysV init was actually like is memorizing vocabulary; knowing SysV, you see systemd&rsquo;s design decisions as <em>answers</em>, not arbitrary rules.</p>
+<p>A rough timeline of the pieces you&rsquo;ll meet:</p>
+<ul>
+<li><strong>1971</strong> — Unix&rsquo;s first edition. The file abstraction, processes, pipes, the syscall interface. The bones of the system you&rsquo;re running on are this old.</li>
+<li><strong>1984</strong> — The X Window System is released at MIT. Network-transparent, client-server, designed for an era when clients might be mainframes. It will run Linux desktops essentially unchanged for the next thirty-five years.</li>
+<li><strong>1991</strong> — Linus posts the first Linux kernel announcement. Initial focus: POSIX compatibility and running on his 386.</li>
+<li><strong>1995</strong> — Sun introduces PAM. Every Unix program that authenticates stops reinventing the auth stack.</li>
+<li><strong>2002</strong> — Havoc Pennington starts D-Bus at Red Hat. The goal is to stop desktops from inventing per-project IPC mechanisms (CORBA, DCOP, Bonobo).</li>
+<li><strong>2003-2008</strong> — The kernel&rsquo;s <code>udev</code> subsystem replaces the old static <code>/dev</code> and <code>devfs</code>. <code>sysfs</code> arrives. Kernel Mode Setting moves display control out of X and into the kernel. Mesa&rsquo;s DRI2 arrives to let clients render directly on GPUs.</li>
+<li><strong>2008</strong> — Kristian Høgsberg begins Wayland. The premise: the X server&rsquo;s 1984 assumptions don&rsquo;t fit how modern apps want to render, and the code can&rsquo;t evolve any further without a restart.</li>
+<li><strong>2010</strong> — Lennart Poettering starts systemd. PID 1 was a neglected frontier; the proposal is to consolidate init, service management, logging, and session tracking into one coherent model.</li>
+<li><strong>2011-2015</strong> — logind, resolved, networkd, timesyncd, homed appear as systemd components. The classic split between &ldquo;init&rdquo; and &ldquo;everything else&rdquo; dissolves.</li>
+<li><strong>2013</strong> — libinput consolidates touchpad/tablet/mouse logic that had lived in a dozen X drivers into a single library that both X and Wayland compositors can use.</li>
+<li><strong>2016</strong> — GNOME 3 starts defaulting to Wayland on capable hardware.</li>
+<li><strong>2019</strong> — io_uring lands in the kernel. A fresh take on async I/O that reshapes high-performance userspace.</li>
+<li><strong>2021-2025</strong> — Wayland crosses the threshold: new toolkits target it first, major distros default to it, the remaining X11 holdouts (NVIDIA, screen recorders, input injection tools) slowly come around.</li>
+</ul>
+<p>These dates are not trivia. Every one of them corresponds to a decision the stack is still living with. When your Electron app runs under XWayland instead of natively, that&rsquo;s because Electron was built when X was the default and hasn&rsquo;t caught up yet — a 1984 protocol hosting a 2015 app via a 2012-designed translation layer. When your touchpad&rsquo;s palm rejection Just Works across every desktop environment, that&rsquo;s because libinput exists; when it didn&rsquo;t, it didn&rsquo;t. When <code>systemctl status</code> shows you a cgroup tree with every process a service has spawned, that&rsquo;s because systemd&rsquo;s designers decided, around 2011, that PID tracking was inadequate and cgroups were the right substrate.</p>
+<p>Each generation added a layer that papered over what the previous one couldn&rsquo;t do well. The result is not a clean architecture. It is a layered, historically-sedimented system whose layers mostly cooperate because people have worked hard to make them cooperate. That cooperation is the interesting part.</p>
+<h2 id="the-thesis">The thesis<a hidden class="anchor" aria-hidden="true" href="#the-thesis">#</a></h2>
+<p>If there is a single observation this series keeps returning to, it is this:</p>
+<p><strong>Modern Linux is a federation of cooperating daemons, coordinating via well-defined IPC, sitting on top of a kernel that exposes its state through standardized APIs. The interesting questions are at the boundaries: how does PAM hand off to logind? How does udev coordinate with systemd? What does NetworkManager push to systemd-resolved, and how does resolved integrate with the libc resolver? When polkit prompts for a password, whose password is it verifying and through what mechanism? Understanding the seams is more valuable than memorizing any single layer.</strong></p>
+<p>This is different from how Linux often gets taught. The usual approach is either &ldquo;here&rsquo;s a bag of commands, paste them when you need them&rdquo; (cookbook) or &ldquo;let&rsquo;s build a kernel from scratch&rdquo; (deep dive). Neither helps you understand why <code>systemctl</code> prompts you for a password sometimes and not others, or why your Wayland compositor loses access to the GPU when you switch to another TTY.</p>
+<p>The through-line here is <em>composition</em>. Every layer has a job. Every layer has an interface at its top and bottom. The system works when they compose cleanly; most bugs live at the seams; most of what feels mysterious in Linux becomes legible once you can name the seams.</p>
+<h2 id="what-this-isnt">What this isn&rsquo;t<a hidden class="anchor" aria-hidden="true" href="#what-this-isnt">#</a></h2>
+<ul>
+<li><strong>Not a distro comparison.</strong> Examples are from Fedora Workstation, but concepts apply to any systemd-based Linux with a modern desktop. Where distros differ meaningfully, it&rsquo;ll be called out.</li>
+<li><strong>Not a server guide.</strong> Focus is desktops and laptops. Servers share most of the kernel and coordination layers but skip the graphical stack and make different assumptions about networking.</li>
+<li><strong>Not an introduction to programming or systems.</strong> If you&rsquo;ve never used a syscall, some sections move fast. You don&rsquo;t need to be a kernel developer — understanding is the goal, not implementation.</li>
+<li><strong>Not exhaustive.</strong> Audio (PipeWire), containers, bootloaders, filesystems, the kernel&rsquo;s TCP/IP stack — all legitimately important, all largely out of scope. The line being held is: <em>what does a logged-in user on a desktop need to understand to reason about the running system they&rsquo;re already using?</em></li>
+</ul>
+<h2 id="the-map">The map<a hidden class="anchor" aria-hidden="true" href="#the-map">#</a></h2>
+<p>Bottom-up, kernel first.</p>
+<h3 id="foundations-the-kernels-surface">Foundations: the kernel&rsquo;s surface<a hidden class="anchor" aria-hidden="true" href="#foundations-the-kernels-surface">#</a></h3>
+<p>The kernel exposes itself to userspace through a handful of distinct interfaces. Three guides:</p>
+<ol>
+<li><strong><a href="/posts/linux_anatomy/syscalls/">Syscalls</a>
+</strong> — the classical interface. The families, how to observe them, how they compose into everything userspace does.</li>
+<li><strong><a href="/posts/linux_anatomy/sysfs/">sysfs</a>
+</strong> — the kernel&rsquo;s structured device and object model, served as a virtual filesystem at <code>/sys</code>.</li>
+<li><strong><a href="/posts/linux_anatomy/procfs/">procfs</a>
+</strong> — process state and legacy kernel state under <code>/proc</code>. The foundation for every observability tool you&rsquo;ve ever used.</li>
+</ol>
+<h3 id="devices-and-hardware">Devices and hardware<a hidden class="anchor" aria-hidden="true" href="#devices-and-hardware">#</a></h3>
+<p>How hardware shows up and who manages it:</p>
+<ol start="4">
+<li><strong>udev</strong> — the userspace device manager. Naming, permissions, event dispatch.</li>
+<li><strong>DRM/KMS</strong> — the kernel&rsquo;s graphics subsystem. How GPU access and display configuration are arbitrated, how frames actually get to the screen.</li>
+<li><strong>libinput</strong> — the userspace input library. How keyboards, mice, touchpads, touchscreens, and tablets produce meaningful events consistently across every modern desktop.</li>
+</ol>
+<h3 id="coordination">Coordination<a hidden class="anchor" aria-hidden="true" href="#coordination">#</a></h3>
+<p>How userspace services coordinate:</p>
+<ol start="7">
+<li><strong>systemd</strong> — PID 1 and the service manager. Units, dependencies, targets, cgroup integration.</li>
+<li><strong>D-Bus</strong> — the RPC bus for local service-to-service and service-to-app communication.</li>
+</ol>
+<h3 id="identity-authentication-authorization">Identity, authentication, authorization<a hidden class="anchor" aria-hidden="true" href="#identity-authentication-authorization">#</a></h3>
+<p>Who you are, how you prove it, what you&rsquo;re allowed to do:</p>
+<ol start="9">
+<li><strong>PAM</strong> — the pluggable authentication framework. How login, sudo, ssh, GDM all share auth logic.</li>
+<li><strong>logind</strong> — session, seat, and user tracking. The glue between login and hardware access.</li>
+<li><strong>polkit</strong> — runtime authorization. How unprivileged desktop apps get to do privileged things without going through <code>sudo</code>.</li>
+</ol>
+<h3 id="the-network">The network<a hidden class="anchor" aria-hidden="true" href="#the-network">#</a></h3>
+<ol start="12">
+<li><strong>NetworkManager</strong> — connection management, WiFi, DHCP, DNS integration, firewall zones. Interleaves with firewalld and systemd-resolved.</li>
+</ol>
+<h3 id="the-graphical-stack">The graphical stack<a hidden class="anchor" aria-hidden="true" href="#the-graphical-stack">#</a></h3>
+<ol start="13">
+<li><strong>GUI overview</strong> — the whole graphical layer from kernel to toolkit: DRM/KMS for display, libinput for input, Wayland vs X11, compositors, toolkits, desktop environments. A map of where everything sits.</li>
+<li><strong>Wayland protocol</strong> — the actual protocol between apps and the compositor. How windows get drawn, how input gets delivered, how the security model differs from X11.</li>
+</ol>
+<h3 id="capstone">Capstone<a hidden class="anchor" aria-hidden="true" href="#capstone">#</a></h3>
+<ol start="15">
+<li><strong>Power button to desktop</strong> — a complete trace of a real boot-to-login-to-desktop, naming every layer, showing how they compose. The victory lap.</li>
+</ol>
+<p>The order is a suggested reading path, not a prerequisite chain. If you already know a topic, skip it. If you want to dip in on something specific, each piece is readable in isolation — they cross-reference but don&rsquo;t strictly depend on each other.</p>
+<h2 id="conventions-across-the-series">Conventions across the series<a hidden class="anchor" aria-hidden="true" href="#conventions-across-the-series">#</a></h2>
+<p>A few things are consistent through every piece:</p>
+<ul>
+<li><strong>Why does this thing exist?</strong> Each guide opens with the problem the component was built to solve. Nothing makes sense without that history.</li>
+<li><strong>The central abstraction in one paragraph.</strong> A single summary you could write on an index card.</li>
+<li><strong>A vocabulary section.</strong> The nouns. Usually a table or diagram.</li>
+<li><strong>A worked example, end to end.</strong> Something concrete that exercises most of the layer, walked through step by step.</li>
+<li><strong>Hands-on commands.</strong> Stuff you can paste and run right now. If reading produces nothing runnable, the guide failed.</li>
+<li><strong>Gotchas.</strong> The tacit knowledge. What looks right but isn&rsquo;t.</li>
+<li><strong>How it fits with the neighbors.</strong> Where this layer stops and the next begins.</li>
+<li><strong>A quick reference card.</strong> For coming back in a month.</li>
+<li><strong>Where to learn more.</strong> The handful of resources that repay the time.</li>
+</ul>
+<p>The density is intentional. These are not blog-post-length. They&rsquo;re closer to chapters — readable in a sitting, structured for reference afterward. You&rsquo;re meant to run commands as you read. The observatory is the point.</p>
+<h2 id="what-youll-need">What you&rsquo;ll need<a hidden class="anchor" aria-hidden="true" href="#what-youll-need">#</a></h2>
+<ul>
+<li>A Linux machine with a desktop. Any modern distro works; Fedora Workstation is what the examples assume.</li>
+<li>A terminal you&rsquo;re comfortable in.</li>
+<li><code>sudo</code> or root access for the parts that inspect privileged resources.</li>
+<li>Patience for a book&rsquo;s worth of content across fifteen pieces.</li>
+<li>No special software setup. Everything is already installed on a default desktop Linux. That&rsquo;s the point.</li>
+</ul>
+<h2 id="how-to-read">How to read<a hidden class="anchor" aria-hidden="true" href="#how-to-read">#</a></h2>
+<p><strong>Linearly</strong> if this is new and you want the full arc. The order is designed to introduce dependencies before they&rsquo;re invoked.</p>
+<p><strong>Non-linearly</strong> if you&rsquo;re picking up specific topics. Each piece is standalone, with back-references where they help.</p>
+<p><strong>As a reference</strong> after the first read. The quick-reference cards and inter-piece cross-links let the series function as lookup material for future debugging.</p>
+<p>However you read, the commands should be typed. Don&rsquo;t just skim the hands-on sections. The value compounds when the abstractions and the runnable invocations are anchored to each other in memory. You already have the machine. Use it.</p>
+<h2 id="a-note-on-how-this-series-came-to-be">A note on how this series came to be<a hidden class="anchor" aria-hidden="true" href="#a-note-on-how-this-series-came-to-be">#</a></h2>
+<p>This series was written by Claude (Anthropic&rsquo;s LLM) in a single long conversation with the site&rsquo;s author, then edited for publication. The framing, the sequencing, and the thesis emerged from a specific real problem: the author was in a Google Store trying to migrate a WeChat account to a new phone, and the store&rsquo;s WiFi blocked client-to-client traffic. Could his laptop host a hotspot with client-to-client visibility while still using the upstream WiFi? The answer involved NetworkManager, firewalld, hostapd, udev, nl80211, and a buggy MediaTek driver.</p>
+<p>That one question expanded. From networking to sessions to authentication to the graphical stack to the kernel interfaces underneath, until the conversation had covered most of what a person running a modern Linux desktop would benefit from understanding.</p>
+<p>The result reflects one AI&rsquo;s mental model of desktop Linux as of early 2026, shaped by a lot of prior exposure to kernel documentation, man pages, mailing list archives, and technical writing — plus the specific questions a curious engineer was asking in real time. The author verified claims, ran commands, corrected mistakes, and made editorial decisions about scope and packaging. The prose, examples, and structure are mostly as Claude wrote them.</p>
+<p>Errors are likely in specifics — driver versions, kernel ABIs, distro conventions all shift subtly, and an LLM sometimes gets stale on them. Structural understanding should hold up. The quick-reference sections at the end of each piece, and the pointers to primary documentation, are the safety net.</p>
+<p>Treat this like a well-structured starting point for building your own mental model — not as a definitive reference. The goal isn&rsquo;t for you to trust these pages; it&rsquo;s for you to read them, run the commands, and come away with enough grounding to read the real specs yourself.</p>
+<p>Fifty years of Unix, thirty of X, twenty of D-Bus, fifteen of systemd, ten of Wayland, and counting. Fifteen pieces, bottom to top. Let&rsquo;s begin.</p>
+
+
+  </div><nav class="chapter-nav"><a class="chapter-nav-prev" href="/posts/linux_anatomy/d_bus/">
+    <small>← Previous</small>
+    <span>DBus</span>
+  </a><span class="chapter-nav-spacer"></span></nav>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Chapter 1: Overview | Zonglin Li</title>
+<meta name="keywords" content="">
+<meta name="description" content="The key insight that ties everything together: modern Linux is a federation of daemons coordinating via well-defined IPC, sitting on top of a kernel that exposes its state through several named APIs. Understanding the seams — where one layer stops and the next begins — is more useful than memorizing any single layer.
+Layer 0: The kernel&rsquo;s boundaries
+The kernel exposes itself to userspace through a handful of interfaces, each with a different philosophy:">
+<meta name="author" content="Zonglin Li">
+<link rel="canonical" href="http://localhost:1313/posts/anatomy/overview/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.199042e659bc7245f5609d333d6c044eb554a0640849bb874e1dff8eb0f57209.css" integrity="sha256-GZBC5lm8ckX1YJ0zPWwETrVUoGQISbuHTh3/jrD1cgk=" rel="preload stylesheet" as="style">
+<link rel="icon" href="http://localhost:1313/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://localhost:1313/apple-touch-icon.png">
+<link rel="mask-icon" href="http://localhost:1313/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="http://localhost:1313/posts/anatomy/overview/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://localhost:1313/" accesskey="h" title="Zonglin Li (Alt + H)">Zonglin Li</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="http://localhost:1313/posts/" title="Posts">
+                    <span>Posts</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Chapter 1: Overview
+      <span class="entry-hint" title="Draft">
+        <svg xmlns="http://www.w3.org/2000/svg" height="35" viewBox="0 -960 960 960" fill="currentColor">
+          <path
+            d="M160-410v-60h300v60H160Zm0-165v-60h470v60H160Zm0-165v-60h470v60H160Zm360 580v-123l221-220q9-9 20-13t22-4q12 0 23 4.5t20 13.5l37 37q9 9 13 20t4 22q0 11-4.5 22.5T862.09-380L643-160H520Zm300-263-37-37 37 37ZM580-220h38l121-122-18-19-19-18-122 121v38Zm141-141-19-18 37 37-18-19Z" />
+        </svg>
+      </span>
+    </h1>
+    <div class="post-meta"><span title='2026-04-19 20:47:34 -0700 PDT'>April 19, 2026</span>&nbsp;·&nbsp;<span>Zonglin Li</span>
+
+</div>
+  </header> 
+  <div class="post-content"><p>The key insight that ties everything together: <strong>modern Linux is a federation of daemons coordinating via well-defined IPC, sitting on top of a kernel that exposes its state through several named APIs.</strong> Understanding the seams — where one layer stops and the next begins — is more useful than memorizing any single layer.</p>
+<h2 id="layer-0-the-kernels-boundaries">Layer 0: The kernel&rsquo;s boundaries<a hidden class="anchor" aria-hidden="true" href="#layer-0-the-kernels-boundaries">#</a></h2>
+<p>The kernel exposes itself to userspace through a handful of interfaces, each with a different philosophy:</p>
+<p><strong>[[Syscalls]]</strong> — the classical interface. <code>read()</code>, <code>write()</code>, <code>socket()</code>, <code>ioctl()</code>([[ioctl]]). Direct function calls into ring 0.</p>
+<p><strong>Filesystems as APIs</strong> — <code>/proc</code>, <code>/sys</code>, <code>/dev</code>, and the newer <code>/sys/fs/cgroup</code>, <code>/sys/fs/bpf</code>. These aren&rsquo;t storage; they&rsquo;re views into kernel state. <code>cat /proc/net/tcp</code> isn&rsquo;t reading a file, it&rsquo;s asking the kernel to serialize its TCP socket table as text.</p>
+<ul>
+<li><code>/proc</code> — process and system state, dates from early Unix, mostly text.</li>
+<li><code>/sys</code> ([[sysfs]]) — device and driver state, one-value-per-file, newer and more structured.</li>
+<li><code>/dev</code> — device nodes, each one a handle for ioctl-style interaction with a driver.</li>
+</ul>
+<p><strong>Netlink</strong> — a socket-based protocol for structured communication with kernel subsystems. Used for networking (<code>NETLINK_ROUTE</code>, <code>NETLINK_GENERIC</code>), udev events (<code>NETLINK_KOBJECT_UEVENT</code>), audit, nftables, etc. This is how <code>ip</code>, <code>iw</code>, <code>nft</code>, and NetworkManager talk to the kernel. More robust than parsing <code>/proc/net/*</code>.</p>
+<p><strong>BPF</strong> — a safe in-kernel VM for running user-supplied programs attached to kernel hooks (networking, tracing, security). Growing hugely in importance.</p>
+<p><strong>Character/block devices</strong> — drivers register nodes in <code>/dev</code>, userspace opens them and issues read/write/ioctl/mmap.</p>
+<p>The important thing: <strong>&ldquo;the kernel&rdquo; isn&rsquo;t one blob you talk to — it&rsquo;s many subsystems, each with its preferred interface.</strong> Networking is mostly netlink. Storage is mostly block devices + sysfs. GPUs are DRM character devices + ioctls. Input is evdev character devices.</p>
+<h2 id="layer-1-drivers-and-the-hotplug-story">Layer 1: Drivers and the hotplug story<a hidden class="anchor" aria-hidden="true" href="#layer-1-drivers-and-the-hotplug-story">#</a></h2>
+<p>Drivers live in the kernel (most of them), but driver <em>policy</em> — which driver to load, what to name the device, what permissions to set, what daemon to notify — is userspace&rsquo;s job. This is the [[udev]] story.</p>
+<p><strong>What happens when you plug in a USB WiFi dongle:</strong></p>
+<ol>
+<li>USB subsystem in the kernel enumerates the device: vendor ID, product ID, class.</li>
+<li>Kernel matches against loaded/loadable driver modules via modaliases. For WiFi, it might load <code>mt76x2u.ko</code>.</li>
+<li>Driver initializes the hardware, registers a <code>net_device</code> with the networking stack, registers a <code>wiphy</code> with the nl80211 subsystem.</li>
+<li>Kernel emits a <strong>uevent</strong> over the <code>NETLINK_KOBJECT_UEVENT</code> socket: &ldquo;new device, here&rsquo;s its sysfs path and properties.&rdquo;</li>
+<li><strong>systemd-udevd</strong> (running in userspace) receives the uevent. It runs rules from <code>/usr/lib/udev/rules.d/</code> and <code>/etc/udev/rules.d/</code> — these decide the device name (e.g., <code>wlp194s0</code> via the predictable naming scheme), set permissions, create symlinks in <code>/dev</code>, and emit a <em>processed</em> uevent on a different netlink multicast group.</li>
+<li>Other daemons subscribed to udev events react: NetworkManager sees the new network device and decides what to do with it based on its config. systemd sees it and activates any <code>.device</code> units that depend on it.</li>
+</ol>
+<p>So: <strong>the kernel loads drivers; udev names devices and dispatches notifications; daemons react.</strong> There&rsquo;s no single orchestrator — it&rsquo;s event-driven pub/sub.</p>
+<p>You can observe it live:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>udevadm monitor --kernel --udev     <span style="color:#75715e"># kernel uevents + processed udev events</span>
+</span></span><span style="display:flex;"><span>udevadm info /sys/class/net/wlp194s0   <span style="color:#75715e"># all attributes udev sees for a device</span>
+</span></span></code></pre></div><h2 id="layer-2-systemd--the-init-system-and-the-service-manager-and-a-bunch-else">Layer 2: [[systemd]] — the init system <em>and</em> the service manager <em>and</em> a bunch else<a hidden class="anchor" aria-hidden="true" href="#layer-2-systemd--the-init-system-and-the-service-manager-and-a-bunch-else">#</a></h2>
+<p>systemd is the elephant. It&rsquo;s PID 1 after boot, but &ldquo;init&rdquo; is only a fraction of what it does. The relevant model:</p>
+<p><strong>Units</strong> are configuration objects describing things systemd manages. Types:</p>
+<ul>
+<li><code>.service</code> — a daemon (NetworkManager.service, sshd.service)</li>
+<li><code>.socket</code> — a listening socket that can launch its service on demand</li>
+<li><code>.timer</code> — a periodic trigger (replaces cron)</li>
+<li><code>.device</code> — a device known to udev (auto-generated)</li>
+<li><code>.mount</code> / <code>.automount</code> — filesystems</li>
+<li><code>.target</code> — a grouping/synchronization point (multi-user.target = &ldquo;system is up for users&rdquo;)</li>
+<li><code>.path</code> — watch a path, trigger on changes</li>
+<li><code>.slice</code> / <code>.scope</code> — cgroup resource-limit containers</li>
+</ul>
+<p>Units have <strong>dependencies</strong> (<code>Wants=</code>, <code>Requires=</code>, <code>After=</code>, <code>Before=</code>) and <strong>ordering</strong>. systemd builds a DAG and parallelizes aggressively.</p>
+<p><strong>Key feature: socket activation.</strong> systemd can own the listening socket for a service and only start the service when a connection arrives. This is how &ldquo;services start on demand&rdquo; works — e.g., you can SSH to a machine and sshd starts at that moment, instead of running continuously.</p>
+<p><strong>Key feature: cgroup integration.</strong> Every service runs in its own cgroup (v2 on Fedora), which is how systemd tracks process membership reliably (not PIDs, which can be forged/reused) and enforces resource limits.</p>
+<p><strong>Beyond init, systemd has absorbed a lot of functionality:</strong></p>
+<ul>
+<li><code>systemd-udevd</code> — device manager (was separate, merged ~2012)</li>
+<li><code>systemd-logind</code> — user session and seat management</li>
+<li><code>systemd-journald</code> — structured logging (replaces syslog for many uses)</li>
+<li><code>systemd-resolved</code> — DNS resolver and stub</li>
+<li><code>systemd-networkd</code> — network configuration (alternative to NetworkManager, server-oriented)</li>
+<li><code>systemd-timesyncd</code> — simple NTP client</li>
+<li><code>systemd-homed</code> — portable user accounts</li>
+<li><code>systemd-boot</code> — UEFI bootloader</li>
+<li><code>systemd-nspawn</code> — lightweight container runtime</li>
+</ul>
+<p>Whether this consolidation is good or bad is a subject of much argument. Pragmatically: on Fedora, systemd owns most of the glue, and learning its model pays off.</p>
+<p><strong>Interaction with users:</strong> <code>systemctl status/start/stop/enable/disable/reload</code>, <code>journalctl</code> for logs, <code>loginctl</code> for sessions, <code>resolvectl</code> for DNS, <code>networkctl</code> for networkd state.</p>
+<h2 id="layer-3-d-bus--the-userspace-rpc-bus">Layer 3: [[D-Bus]] — the userspace RPC bus<a hidden class="anchor" aria-hidden="true" href="#layer-3-d-bus--the-userspace-rpc-bus">#</a></h2>
+<p>D-Bus is how userspace daemons talk to each other and to applications. It&rsquo;s not magic; it&rsquo;s a message-passing bus with:</p>
+<ul>
+<li><strong>A broker daemon</strong> (<code>dbus-broker</code> on modern Fedora, formerly <code>dbus-daemon</code>) that routes messages.</li>
+<li><strong>Two buses per typical system</strong>: the <strong>system bus</strong> (one instance, root-privileged, for system services — NetworkManager, systemd, BlueZ, firewalld, UPower, logind) and the <strong>session bus</strong> (one per user session, for desktop apps).</li>
+<li><strong>Well-known names</strong> like <code>org.freedesktop.NetworkManager</code> that services claim, so clients know who to address.</li>
+<li><strong>Objects, interfaces, methods, properties, signals</strong> — roughly analogous to CORBA or COM, but simpler.</li>
+</ul>
+<p><strong>What this buys us:</strong> a standard way for decoupled components to communicate. Instead of NetworkManager needing a bespoke IPC protocol and every client implementing it, everyone speaks D-Bus and uses code-generated bindings.</p>
+<p>Concrete example: when you run <code>nmcli device status</code>, <code>nmcli</code> opens a connection to the system bus, calls <code>org.freedesktop.NetworkManager.GetDevices</code>, formats the reply. No shared library, no config file parsing — just a D-Bus call.</p>
+<p>You can poke the bus directly:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl list                             <span style="color:#75715e"># everyone on the system bus</span>
+</span></span><span style="display:flex;"><span>busctl tree org.freedesktop.NetworkManager    <span style="color:#75715e"># its object hierarchy</span>
+</span></span><span style="display:flex;"><span>busctl introspect org.freedesktop.NetworkManager /org/freedesktop/NetworkManager
+</span></span><span style="display:flex;"><span>busctl call org.freedesktop.NetworkManager /org/freedesktop/NetworkManager <span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span>    org.freedesktop.NetworkManager GetDevices
+</span></span></code></pre></div><p>systemd itself is heavily D-Bus-driven; <code>systemctl</code> is essentially a D-Bus client for PID 1.</p>
+<p><strong>Polkit</strong> sits on top of D-Bus: when an unprivileged client calls a privileged method (e.g., &ldquo;change system time&rdquo;, &ldquo;connect to this WiFi&rdquo;), the service asks polkit &ldquo;is this user allowed?&rdquo;, and polkit evaluates rules (possibly prompting for auth). This is how desktop apps trigger privileged operations without being setuid or running as root.</p>
+<h2 id="layer-4-the-network-stack-specifically">Layer 4: The network stack specifically<a hidden class="anchor" aria-hidden="true" href="#layer-4-the-network-stack-specifically">#</a></h2>
+<p>Now let&rsquo;s layer the specifics of networking.</p>
+<p><strong>Kernel</strong> owns:</p>
+<ul>
+<li><code>net_device</code> objects (each interface)</li>
+<li>routing tables (up to 256 of them, with policy routing)</li>
+<li>netfilter hooks (where nftables/iptables/bpf attach)</li>
+<li>socket layer (TCP/UDP/SCTP, Unix sockets)</li>
+<li>conntrack (stateful connection tracking)</li>
+<li>cfg80211/nl80211 (WiFi configuration abstractions)</li>
+<li>mac80211 (shared softMAC implementation many WiFi drivers use)</li>
+</ul>
+<p>You interact with the kernel via <strong>netlink</strong>. Tools:</p>
+<ul>
+<li><code>ip</code> (from iproute2) — <code>NETLINK_ROUTE</code>, covers links, addresses, routes, rules, tunnels</li>
+<li><code>iw</code> — <code>NETLINK_GENERIC</code> via nl80211, covers WiFi</li>
+<li><code>nft</code> — <code>NFNETLINK</code>, covers nftables</li>
+<li><code>ss</code> — sockets (replaces <code>netstat</code>, uses netlink not <code>/proc</code>)</li>
+<li><code>tc</code> — traffic control/qdiscs</li>
+<li><code>ethtool</code> — driver-level NIC configuration (mostly ioctl, some netlink)</li>
+</ul>
+<p><strong>Userspace daemons</strong> coordinating network state:</p>
+<ul>
+<li>
+<p><strong>[[NetworkManager]]</strong> — the big one on desktops. Owns connection profiles, drives wpa_supplicant for WiFi auth, runs DHCP client (internal or dhclient/dhcpcd), updates <code>/etc/resolv.conf</code> or talks to systemd-resolved, applies routes, manages VPN plugins (WireGuard, OpenVPN), sets firewall zones via firewalld&rsquo;s D-Bus API. Exposed on D-Bus as <code>org.freedesktop.NetworkManager</code>.</p>
+</li>
+<li>
+<p><strong>wpa_supplicant</strong> — does 802.11 authentication (WPA2/WPA3/Enterprise). NetworkManager spawns and commands it via D-Bus. Not a daemon you usually talk to directly.</p>
+</li>
+<li>
+<p><strong>systemd-resolved</strong> — DNS stub resolver listening on 127.0.0.53. Applications query it (via <code>nss-resolve</code> or direct), it forwards to the real DNS servers, caches results, handles per-interface DNS, DNSSEC, DoT. NetworkManager pushes per-link DNS into it via D-Bus.</p>
+</li>
+<li>
+<p><strong>firewalld</strong> — as you now know, owns the nftables ruleset via zones. Exposed on D-Bus.</p>
+</li>
+<li>
+<p><strong>dhcpcd / dhclient / NetworkManager&rsquo;s internal DHCP client</strong> — one of these runs per DHCP-enabled interface. NM&rsquo;s internal one is default on Fedora.</p>
+</li>
+</ul>
+<p><strong>A concrete trace: you click &ldquo;Connect&rdquo; on a WiFi network in GNOME.</strong></p>
+<ol>
+<li>gnome-shell&rsquo;s network indicator is a D-Bus client of NetworkManager. It calls <code>ActivateConnection</code>.</li>
+<li>NetworkManager receives the call. Looks up the saved connection profile (keyfile in <code>/etc/NetworkManager/system-connections/</code>).</li>
+<li>NM asks polkit whether the calling user is authorized. Polkit prompts if needed.</li>
+<li>NM prepares the interface via netlink (<code>ip link set up</code> equivalent).</li>
+<li>NM starts wpa_supplicant (if not running) and commands it via D-Bus to associate with the SSID using the stored PSK.</li>
+<li>wpa_supplicant does the 802.11 association and 4-way handshake with the AP. On success, it notifies NM.</li>
+<li>NM starts its DHCP client on the interface. DHCP client sends DISCOVER, gets OFFER, negotiates, ends up with an IP, gateway, DNS servers.</li>
+<li>NM configures the IP and route via netlink.</li>
+<li>NM pushes DNS servers to systemd-resolved via D-Bus.</li>
+<li>NM applies the connection&rsquo;s firewall zone to the interface via firewalld&rsquo;s D-Bus API.</li>
+<li>NM emits a <code>StateChanged</code> signal. Everyone subscribed (gnome-shell, your status bar, any other NM clients) sees the update and redraws.</li>
+</ol>
+<p>Every step is observable. If something broke, you can look at <code>journalctl -u NetworkManager</code>, <code>journalctl -u wpa_supplicant</code>, <code>journalctl -u systemd-resolved</code>, <code>busctl monitor org.freedesktop.NetworkManager</code>, <code>nft list ruleset</code>.</p>
+<h2 id="layer-5-the-audio-stack-sidebar-but-structurally-similar">Layer 5: The audio stack (sidebar, but structurally similar)<a hidden class="anchor" aria-hidden="true" href="#layer-5-the-audio-stack-sidebar-but-structurally-similar">#</a></h2>
+<p>Quick aside, because it parallels the network stack closely and matters for GUI:</p>
+<p><strong>Kernel</strong>: ALSA (<code>/dev/snd/*</code> devices, controls via sysfs/ioctls).</p>
+<p><strong>Userspace daemon</strong>: <strong>PipeWire</strong> (modern Fedora default). Single daemon handling audio <em>and</em> video streams (webcams, screen capture). Replaces PulseAudio (still presents its API for compat) and JACK (also presents its API). Routes via a session manager (<strong>WirePlumber</strong>) that applies per-device/per-app policy.</p>
+<p>D-Bus interfaces for media keys, volume control, session management. This is how your keyboard&rsquo;s volume key ends up changing volume in a specific app.</p>
+<h2 id="layer-6-the-graphical-user-interface">Layer 6: The graphical user interface<a hidden class="anchor" aria-hidden="true" href="#layer-6-the-graphical-user-interface">#</a></h2>
+<p>The Linux GUI stack is notoriously complex because of historical accumulation (X11 is old, Wayland is newer, they coexist) and because &ldquo;GUI&rdquo; bundles several distinct concerns that are separately replaceable.</p>
+<h3 id="the-six-things-a-gui-actually-does">The six things a &ldquo;GUI&rdquo; actually does<a hidden class="anchor" aria-hidden="true" href="#the-six-things-a-gui-actually-does">#</a></h3>
+<p>A graphical session needs to handle:</p>
+<ol>
+<li><strong>Talk to the GPU</strong> — allocate framebuffers, submit rendering commands, schedule compositing.</li>
+<li><strong>Set display modes</strong> — &ldquo;run the monitor at 3840×2160@60Hz, sRGB, HDR off.&rdquo;</li>
+<li><strong>Read input devices</strong> — keyboards, mice, touchpads, touchscreens, tablets.</li>
+<li><strong>Compose windows</strong> — take rendered frames from each app, stack them, scale, display.</li>
+<li><strong>Provide a windowing protocol</strong> — how apps and the compositor communicate (here&rsquo;s my window, here&rsquo;s your input event, resize me).</li>
+<li><strong>Render widgets</strong> — the buttons, text fields, menus that apps are built from.</li>
+</ol>
+<p>Each is a separable layer. Understanding where one ends and the next begins is the key to the whole stack.</p>
+<h3 id="kernel-drm-kms-evdev">Kernel: [[DRM KMS]], evdev<a hidden class="anchor" aria-hidden="true" href="#kernel-drm-kms-evdev">#</a></h3>
+<p><strong>DRM (Direct Rendering Manager)</strong> is the kernel&rsquo;s GPU subsystem. Each GPU shows up as <code>/dev/dri/card0</code> (modesetting/privileged) and <code>/dev/dri/renderD128</code> (rendering). Userspace opens these and sends [[ioctl]]s to allocate buffers, submit rendering command streams, and wait for completion. Memory management, scheduling, and security (isolating clients) all live here.</p>
+<p><strong>KMS (Kernel Mode Setting)</strong> is the subset of DRM that handles <em>display configuration</em>: enumerate connectors (HDMI, DisplayPort), probe EDID, set resolutions and refresh rates, manage CRTCs, handle page flips for tear-free updates. Before KMS, mode setting happened in userspace X drivers — hence the classic &ldquo;X crashed and my monitor went black&rdquo; era. Now it&rsquo;s in-kernel and robust; the display keeps working even if the compositor crashes.</p>
+<p><strong>evdev</strong> is the input subsystem. Every keyboard, mouse, touchpad, touchscreen, joystick, tablet surfaces as <code>/dev/input/event*</code>. The kernel standardizes on a single event stream (type, code, value triples) regardless of connection (USB, Bluetooth, I²C, PS/2). <code>evtest</code> lets you watch the raw events.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>ls /dev/dri/                   <span style="color:#75715e"># card0, renderD128</span>
+</span></span><span style="display:flex;"><span>ls /dev/input/                 <span style="color:#75715e"># event0..eventN, plus by-id/ and by-path/ subdirs</span>
+</span></span><span style="display:flex;"><span>sudo evtest /dev/input/event5  <span style="color:#75715e"># watch events from one device</span>
+</span></span></code></pre></div><p>Access to these device nodes is privileged, which is where <strong>[[logind]]</strong> and <strong>seats</strong> re-enter: logind grants your session ACLs on DRI and input devices when you log in at a physical seat. When you switch to another VT, your session loses these; the new session gets them. This is also why remote SSH sessions can&rsquo;t drive the display (no seat, no ACLs).</p>
+<h3 id="gpu-userspace-mesa-and-libraries">GPU userspace: Mesa and libraries<a hidden class="anchor" aria-hidden="true" href="#gpu-userspace-mesa-and-libraries">#</a></h3>
+<p>GPU drivers in Linux split into two halves:</p>
+<p><strong>Kernel half</strong> (<code>amdgpu</code>, <code>i915</code>/<code>xe</code>, <code>nouveau</code>, <code>nvidia</code> proprietary) — memory management, command submission, scheduling, power management.</p>
+<p><strong>Userspace half</strong> — takes app-level APIs (OpenGL, Vulkan, OpenCL) and compiles them to hardware-specific command streams the kernel driver will submit. For open-source drivers, this lives in <strong>Mesa</strong>, a massive project providing userspace implementations of all the major graphics APIs. Proprietary NVIDIA ships its own userspace libraries as a blob.</p>
+<p><code>libdrm</code> is the thin syscall-wrapper library that everyone uses to talk to the DRM interface; compositors and Mesa both depend on it.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>glxinfo | head                        <span style="color:#75715e"># GL renderer and version</span>
+</span></span><span style="display:flex;"><span>vulkaninfo --summary                  <span style="color:#75715e"># Vulkan devices and drivers</span>
+</span></span><span style="display:flex;"><span>lspci -k | grep -A <span style="color:#ae81ff">2</span> -i vga           <span style="color:#75715e"># which kernel driver owns the GPU</span>
+</span></span></code></pre></div><h3 id="display-server-x11-vs-wayland">Display server: X11 vs Wayland<a hidden class="anchor" aria-hidden="true" href="#display-server-x11-vs-wayland">#</a></h3>
+<p>Here&rsquo;s the central fork in the Linux GUI story.</p>
+<p><strong>X11</strong> (the X Window System, ~1984 design) was the dominant Linux display server for three decades. Its model: one big server process (<code>Xorg</code>) owns the display, arbitrates between clients (apps), and implements a network-transparent protocol. Apps are clients that send drawing commands over a socket; the server draws.</p>
+<p>The key design choice X11 made: the server does the drawing. This was right in 1984 (clients might be on remote mainframes; the server is where the pixels are) but wrong by the 2000s (clients want to render their own pixels with GPUs; the server is just a middleman). X11 accumulated extensions (Composite, Damage, XRender, DRI2, Present) that let clients render to offscreen buffers and hand pixmaps to a compositor — but the core model was a liability.</p>
+<p>X11 ran most Linux desktops from 1990 to ~2020. It still runs many today, but new development is on:</p>
+<p><strong>Wayland</strong> (2008-) — a redesign. Key differences:</p>
+<ul>
+<li><strong>No separate display server process.</strong> The <strong>compositor</strong> is the Wayland server. One process does compositing <em>and</em> handles the protocol.</li>
+<li><strong>Clients render their own buffers</strong> (via EGL/Vulkan on GPU, or software on CPU), then hand fds to the compositor. The compositor composites.</li>
+<li><strong>Protocol is stricter about security.</strong> In X11, any client could read any other&rsquo;s window content, inject keystrokes, or screenshot the whole screen. In Wayland, clients are isolated by default; system-level operations (screen capture, global hotkeys, input injection) go through explicit protocol extensions or <strong>portals</strong>.</li>
+<li><strong>No network transparency.</strong> X11 could forward windows over the network. Wayland doesn&rsquo;t, natively. If you need that, use VNC/RDP/waypipe.</li>
+</ul>
+<p>The dominant Linux compositors today:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Compositor</th>
+          <th>Desktop</th>
+          <th>Toolkit alignment</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>mutter</code></td>
+          <td>GNOME</td>
+          <td>GTK</td>
+      </tr>
+      <tr>
+          <td><code>KWin</code></td>
+          <td>KDE Plasma</td>
+          <td>Qt</td>
+      </tr>
+      <tr>
+          <td><code>sway</code></td>
+          <td>sway (i3-like tiling)</td>
+          <td>independent</td>
+      </tr>
+      <tr>
+          <td><code>hyprland</code></td>
+          <td>Hyprland (dynamic tiling)</td>
+          <td>independent</td>
+      </tr>
+      <tr>
+          <td><code>weston</code></td>
+          <td>reference implementation</td>
+          <td>—</td>
+      </tr>
+      <tr>
+          <td><code>gamescope</code></td>
+          <td>Steam Deck, gaming sessions</td>
+          <td>—</td>
+      </tr>
+  </tbody>
+</table>
+<p>Most have both an X11 backend (for legacy) and a Wayland backend.</p>
+<p><strong>XWayland</strong> is the bridge. It&rsquo;s an X11 server that runs <em>as a Wayland client</em>, so X11 apps keep working inside a Wayland session. You end up with (for example) Electron apps or old Java GUIs running under XWayland, while native GTK/Qt apps talk Wayland directly.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo $XDG_SESSION_TYPE              <span style="color:#75715e"># x11 or wayland</span>
+</span></span><span style="display:flex;"><span>echo $WAYLAND_DISPLAY               <span style="color:#75715e"># e.g., wayland-0</span>
+</span></span><span style="display:flex;"><span>echo $DISPLAY                       <span style="color:#75715e"># :0 under X, or XWayland display under Wayland</span>
+</span></span><span style="display:flex;"><span>loginctl show-session $XDG_SESSION_ID -p Type -p Remote
+</span></span></code></pre></div><h3 id="input-libinput">Input: [[libinput]]<a hidden class="anchor" aria-hidden="true" href="#input-libinput">#</a></h3>
+<p>Whether you run X or Wayland, <strong>libinput</strong> is now the standard userspace input library. It takes raw evdev events and turns them into high-level gestures: tap-to-click, two-finger scroll, palm rejection, pointer acceleration curves, tablet pressure. The compositor embeds libinput (Wayland) or X.Org&rsquo;s <code>xf86-input-libinput</code> driver wraps it (X11). Same logic, different host.</p>
+<p>Configuration used to be a nightmare (per-driver xorg.conf snippets). libinput is far simpler and ships sane defaults; desktop settings panels expose a handful of knobs (tap-to-click, natural scrolling, acceleration).</p>
+<h3 id="session-bring-up-display-managers-and-login">Session bring-up: display managers and login<a hidden class="anchor" aria-hidden="true" href="#session-bring-up-display-managers-and-login">#</a></h3>
+<p>The path from &ldquo;power on&rdquo; to &ldquo;desktop&rdquo;:</p>
+<ol>
+<li>systemd brings up <code>graphical.target</code>.</li>
+<li><code>display-manager.service</code> starts — GDM (GNOME), SDDM (KDE), LightDM (XFCE et al.), or <code>greetd</code>.</li>
+<li>DM opens a DRM/KMS display, reads input, shows a login screen.</li>
+<li>You pick a session type (GNOME on Wayland, Plasma on X11, sway, etc.) and authenticate via PAM.</li>
+<li>DM asks logind to create a session; logind assigns a seat and grants ACLs.</li>
+<li>DM spawns the session — typically <code>gnome-session</code> or the equivalent — which starts the compositor, a settings daemon, a window manager (if compositor and WM are separate), and the user&rsquo;s autostart apps.</li>
+<li>The compositor claims the Wayland socket (<code>$XDG_RUNTIME_DIR/wayland-0</code>) or the X display.</li>
+<li>Apps launched from now on find the compositor via environment variables.</li>
+</ol>
+<p>Each of these steps is observable: <code>journalctl -u gdm</code>, <code>journalctl --user</code>, <code>ps auxf</code> under your uid.</p>
+<h3 id="the-wayland-protocol-model">The [[Wayland]] protocol model<a hidden class="anchor" aria-hidden="true" href="#the-wayland-protocol-model">#</a></h3>
+<p>Worth a concrete example because Wayland&rsquo;s architecture shows up everywhere.</p>
+<p>A Wayland compositor is a server that exposes a Unix socket. Clients (apps) connect and speak the Wayland wire protocol: object-oriented messages defining interfaces (<code>wl_compositor</code>, <code>wl_surface</code>, <code>xdg_toplevel</code>, <code>wl_seat</code>, <code>wl_keyboard</code>). Clients create surfaces, attach buffers (rendered via GPU fds), commit frames; compositor composites and responds with input events and configure messages (resize requests, window state).</p>
+<p>The core protocol is deliberately minimal. Most functionality lives in <strong>protocol extensions</strong> — some stable, some compositor-specific. <code>xdg-shell</code> is the dominant extension for window management. <code>xdg-desktop-portal</code> (below) covers the stuff that was free-for-all in X11 (screenshots, file choosers, inhibit idle).</p>
+<p>Introspection tools:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>wayland-info               <span style="color:#75715e"># like xdpyinfo; dumps compositor capabilities</span>
+</span></span><span style="display:flex;"><span>weston-debug               <span style="color:#75715e"># live protocol trace (if running weston)</span>
+</span></span><span style="display:flex;"><span>WAYLAND_DEBUG<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> &lt;cmd&gt;      <span style="color:#75715e"># dump protocol messages for a client</span>
+</span></span></code></pre></div><p><code>WAYLAND_DEBUG=1</code> is the GUI equivalent of <code>strace</code> for a single app — you see every protocol message, same pedagogical value.</p>
+<h3 id="portals-the-sandboxing-bridge">Portals: the sandboxing bridge<a hidden class="anchor" aria-hidden="true" href="#portals-the-sandboxing-bridge">#</a></h3>
+<p>Wayland&rsquo;s strictness means apps can&rsquo;t just &ldquo;take a screenshot&rdquo; or &ldquo;pick a file&rdquo; or &ldquo;prevent the screen from locking&rdquo; — those operations need to be mediated. The pattern: <strong>xdg-desktop-portal</strong>, a D-Bus service running on the session bus.</p>
+<p>Apps call portal methods (<code>org.freedesktop.portal.Screenshot</code>, <code>.FileChooser</code>, <code>.Inhibit</code>, <code>.Notification</code>). The portal shows a UI for confirmation (file picker dialog, &ldquo;this app wants to record your screen — allow?&rdquo;) and returns the result. The portal is compositor-specific under the hood (GNOME&rsquo;s portal, KDE&rsquo;s portal, etc., via different backends), but the D-Bus API is uniform.</p>
+<p>This is also the path for <strong>[[Flatpak]]</strong> apps: sandboxed apps have only D-Bus access to the session bus, and portals are how they reach anything outside their sandbox. Native Wayland apps also use portals for screenshots etc., even without sandboxing.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>busctl --user list | grep portal
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># org.freedesktop.portal.Desktop</span>
+</span></span><span style="display:flex;"><span>busctl --user tree org.freedesktop.portal.Desktop
+</span></span></code></pre></div><h3 id="toolkits-how-apps-are-actually-built">Toolkits: how apps are actually built<a hidden class="anchor" aria-hidden="true" href="#toolkits-how-apps-are-actually-built">#</a></h3>
+<p>The <strong>toolkit</strong> is what app developers actually program against — it provides widgets, layouts, theming, event loops, accessibility hooks. The toolkit handles the Wayland/X11 protocol details so apps don&rsquo;t have to.</p>
+<p>Major toolkits:</p>
+<ul>
+<li><strong>GTK</strong> (version 3 and 4) — GNOME&rsquo;s toolkit, used by GNOME apps, XFCE, Cinnamon, many independent apps (Firefox has a GTK backend). C-based with bindings for everything.</li>
+<li><strong>Qt</strong> — KDE&rsquo;s toolkit, but also widely used outside KDE (Telegram, VLC, OBS). C++ with QML for declarative UI. Very comprehensive.</li>
+<li><strong>Electron</strong> — Chromium + Node.js bundled as an app. Each Electron app ships its own browser engine. Memory-hungry but pragmatic; VS Code, Slack, Discord, many others. Usually runs under XWayland still.</li>
+<li><strong>Tauri</strong> — lighter-weight alternative to Electron using the system&rsquo;s webview.</li>
+<li><strong>Flutter</strong> — Google&rsquo;s cross-platform toolkit; has Linux support. Growing slowly on Linux.</li>
+<li><strong>Dear ImGui</strong>, <strong>egui</strong>, <strong>Slint</strong>, <strong>Iced</strong>, <strong>Druid/Xilem</strong> — various immediate-mode or native Rust/C++ toolkits, common in games and niche apps.</li>
+<li><strong>Tk, FLTK, wxWidgets</strong> — older or niche toolkits, still in use.</li>
+</ul>
+<p>Toolkit choice cascades into visual style: GTK apps follow Adwaita (GNOME&rsquo;s HIG), Qt apps follow Breeze (KDE&rsquo;s), Electron apps do their own thing. &ldquo;Linux doesn&rsquo;t have a consistent look&rdquo; is largely because of this.</p>
+<p>Toolkits also embed <strong>fonts</strong> (via fontconfig + FreeType + HarfBuzz — font discovery, rasterization, shaping respectively), <strong>rendering</strong> (Cairo for 2D vector, or direct GPU via GL/Vulkan), <strong>accessibility</strong> (AT-SPI over D-Bus, letting screen readers work), and <strong>input methods</strong> (IBus or Fcitx over D-Bus for CJK/Unicode input).</p>
+<h3 id="desktop-environments">Desktop environments<a hidden class="anchor" aria-hidden="true" href="#desktop-environments">#</a></h3>
+<p>A <strong>desktop environment</strong> is a curated bundle of compositor + session manager + settings daemon + file manager + terminal + stock apps, with a consistent theme and HIG.</p>
+<ul>
+<li><strong>GNOME</strong> — opinionated, clean, uses mutter as the compositor, GTK. Dominant default on Fedora, Debian, Ubuntu.</li>
+<li><strong>KDE Plasma</strong> — highly configurable, uses KWin, Qt. More traditional desktop metaphor with lots of knobs.</li>
+<li><strong>XFCE, MATE, Cinnamon</strong> — lighter, more classical. Largely X11 still.</li>
+<li><strong>LXQt</strong> — lightweight Qt.</li>
+<li><strong>Budgie, Pantheon</strong> — smaller polished DEs.</li>
+</ul>
+<p>Or you can skip the DE and assemble your own: a compositor (sway, hyprland, river) + a bar (waybar) + a launcher (wofi, rofi) + a notification daemon (mako, dunst) + a terminal + whatever else. This is the tiling-window-manager path — more assembly required, tighter to your preferences.</p>
+<h3 id="accessibility-im-theming--the-secondary-stack">Accessibility, IM, theming — the secondary stack<a hidden class="anchor" aria-hidden="true" href="#accessibility-im-theming--the-secondary-stack">#</a></h3>
+<p>Three more D-Bus-based services worth knowing:</p>
+<ul>
+<li><strong>AT-SPI</strong> — the accessibility toolkit bus. Screen readers (Orca) and assistive tools subscribe to app events via AT-SPI.</li>
+<li><strong>IBus / Fcitx</strong> — input method frameworks. Apps forward keystrokes to the IM daemon via a protocol; the IM returns composed characters. Essential for Chinese, Japanese, Korean, Vietnamese, etc.</li>
+<li><strong>xsettings / gsettings / kconfig</strong> — desktop-wide settings storage. Themes, font sizes, icon themes. Apps read these at startup and on change notifications.</li>
+</ul>
+<h3 id="the-whole-picture-for-a-gui-operation">The whole picture for a GUI operation<a hidden class="anchor" aria-hidden="true" href="#the-whole-picture-for-a-gui-operation">#</a></h3>
+<p>Trace: &ldquo;you press Ctrl+Alt+T to open a terminal in GNOME on Wayland.&rdquo;</p>
+<ol>
+<li>Keyboard generates USB HID report → kernel&rsquo;s USB HID driver → evdev event on <code>/dev/input/event5</code>.</li>
+<li><strong>mutter</strong> (GNOME&rsquo;s compositor) is reading evdev via <strong>libinput</strong>. libinput recognizes the raw event and emits a cooked key event.</li>
+<li>mutter checks its keybinding table. Ctrl+Alt+T is bound to &ldquo;launch default terminal&rdquo; via GNOME&rsquo;s settings.</li>
+<li>mutter calls into gnome-shell (same process, really — mutter <em>is</em> gnome-shell&rsquo;s compositor component) to execute the action.</li>
+<li>gnome-shell uses its settings (<code>org.gnome.desktop.default-applications.terminal</code>, queried via gsettings/dconf over D-Bus) to find the binary — <code>gnome-terminal</code>.</li>
+<li>gnome-shell spawns <code>gnome-terminal</code> via <code>g_spawn_async</code> (ultimately <code>fork</code>+<code>execve</code>).</li>
+<li><code>gnome-terminal</code> starts. It links against GTK, which connects to the Wayland socket (<code>$WAYLAND_DISPLAY</code>) and registers with the compositor.</li>
+<li>GTK creates a window: sends <code>wl_compositor.create_surface</code>, then <code>xdg_surface.get_toplevel</code>, requests decorations, commits an initial size.</li>
+<li>GTK renders the terminal widget into a buffer (via Cairo or GPU via GL).</li>
+<li>GTK sends <code>wl_surface.attach(buffer_fd)</code> + <code>wl_surface.commit</code> to the compositor.</li>
+<li>mutter receives the new buffer, composites it into the next frame, schedules a page flip via KMS.</li>
+<li>KMS tells the GPU to scan out the new framebuffer on the next vblank.</li>
+<li>Pixels hit the monitor.</li>
+</ol>
+<p>Every step is observable: evdev events with <code>evtest</code>, libinput events with <code>libinput debug-events</code>, Wayland protocol with <code>WAYLAND_DEBUG=1 gnome-terminal</code>, GPU activity with <code>amdgpu_top</code> or <code>intel_gpu_top</code>, the gsettings read with <code>dconf watch /</code>, the spawn with <code>strace -fe execve</code>. All of it.</p>
+<h3 id="common-gui-troubleshooting">Common GUI troubleshooting<a hidden class="anchor" aria-hidden="true" href="#common-gui-troubleshooting">#</a></h3>
+<ul>
+<li><strong>Wayland session won&rsquo;t start / falls back to X11</strong> — <code>journalctl -u gdm</code> and <code>journalctl --user</code>. Usually a GPU driver issue (nvidia on older drivers, or missing Mesa support for your GPU).</li>
+<li><strong>Screen tearing or black screens</strong> — KMS is usually blameless. Check the compositor&rsquo;s logs, GPU driver <code>dmesg</code>, maybe wrong DRM driver loaded.</li>
+<li><strong>App won&rsquo;t run under Wayland</strong> — check if it&rsquo;s XWayland (many still are). Try <code>WAYLAND_DEBUG=1 &lt;app&gt;</code> or <code>GDK_BACKEND=x11 &lt;app&gt;</code> to force XWayland.</li>
+<li><strong>Input device not recognized</strong> — <code>sudo libinput debug-events</code> sees everything libinput sees. If it&rsquo;s not there, it&rsquo;s an evdev/kernel issue.</li>
+<li><strong>Fractional scaling looks blurry</strong> — that&rsquo;s XWayland apps; there&rsquo;s no great solution yet for HiDPI on X11 clients.</li>
+<li><strong>Screenshot / screen record doesn&rsquo;t work</strong> — ensure xdg-desktop-portal is running for your DE (<code>systemctl --user status xdg-desktop-portal</code>).</li>
+<li><strong>Copy/paste between X and Wayland apps breaks</strong> — clipboard bridges through XWayland, sometimes flakily. Compositor-specific.</li>
+</ul>
+<h2 id="putting-it-all-together">Putting it all together<a hidden class="anchor" aria-hidden="true" href="#putting-it-all-together">#</a></h2>
+<p>The recurring pattern, now with GUI:</p>
+<ul>
+<li><strong>Kernel</strong> exposes hardware state and mechanism through syscalls, sysfs, netlink, DRM/KMS, evdev, BPF.</li>
+<li><strong>Low-level userspace</strong> (udev, libdrm, libinput, Mesa, wpa_supplicant) translates raw kernel events and wraps low-level APIs into usable shapes.</li>
+<li><strong>Coordinating daemons</strong> (systemd, NetworkManager, firewalld, resolved, PipeWire, logind, compositor) hold policy, configuration, session state, expose D-Bus APIs.</li>
+<li><strong>Toolkits and apps</strong> (GTK, Qt, Electron, plus every GUI app) call into those APIs. Talk to compositor via Wayland protocol, to system services via D-Bus, to kernel via syscalls.</li>
+<li><strong>Desktop environments</strong> are curated assemblies of the above with a consistent UI identity.</li>
+</ul>
+<p>Four layers where you can intervene:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Want to&hellip;</th>
+          <th>Touch this</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Inspect kernel / hardware state</td>
+          <td><code>/proc</code>, <code>/sys</code>, <code>ip</code>, <code>iw</code>, <code>nft</code>, <code>evtest</code>, <code>drm_info</code>, <code>lsusb</code>, <code>lspci</code></td>
+      </tr>
+      <tr>
+          <td>Change persistent config</td>
+          <td>edit under <code>/etc/</code> (system) or <code>~/.config/</code> (user), or use gsettings/dconf for GNOME</td>
+      </tr>
+      <tr>
+          <td>Make runtime changes with persistence</td>
+          <td>use the daemon&rsquo;s CLI (<code>nmcli</code>, <code>firewall-cmd</code>, <code>systemctl</code>, <code>gsettings</code>, <code>wpctl</code>)</td>
+      </tr>
+      <tr>
+          <td>Programmatically drive from another program</td>
+          <td>D-Bus for most services; Wayland protocol for compositor; syscalls or netlink for kernel</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="debugging-tools-across-layers">Debugging tools across layers<a hidden class="anchor" aria-hidden="true" href="#debugging-tools-across-layers">#</a></h2>
+<ul>
+<li><code>journalctl -xe</code> — all logs; filter by unit, time, boot, priority.</li>
+<li><code>journalctl --user</code> — your session&rsquo;s services and apps.</li>
+<li><code>systemctl status</code> / <code>systemctl --user status</code> — unit state.</li>
+<li><code>busctl monitor &lt;service&gt;</code> — watch D-Bus messages live.</li>
+<li><code>WAYLAND_DEBUG=1 &lt;app&gt;</code> — trace Wayland protocol messages for one client.</li>
+<li><code>libinput debug-events</code> — raw input events as libinput sees them.</li>
+<li><code>evtest</code> — deeper, raw evdev events per device.</li>
+<li><code>wayland-info</code> / <code>xdpyinfo</code> — compositor/display server capabilities.</li>
+<li><code>amdgpu_top</code> / <code>intel_gpu_top</code> / <code>nvidia-smi</code> — GPU activity.</li>
+<li><code>drm_info</code> — DRM device details, connectors, modes, planes.</li>
+<li><code>glxinfo</code> / <code>vulkaninfo</code> / <code>eglinfo</code> — graphics API capabilities.</li>
+<li><code>strace -f -e execve,openat &lt;cmd&gt;</code> — what syscalls.</li>
+<li><code>bpftrace</code> / <code>perf</code> — low-overhead kernel tracing.</li>
+<li><code>nft monitor</code> — watch nftables changes.</li>
+<li><code>udevadm monitor</code> — device events.</li>
+<li><code>pw-top</code> / <code>wpctl status</code> — PipeWire streams and devices.</li>
+</ul>
+<p>Between these, almost any &ldquo;why did that happen?&rdquo; question about a running Linux desktop is answerable in a few minutes.</p>
+<h2 id="the-minority-report-revised">The minority report (revised)<a hidden class="anchor" aria-hidden="true" href="#the-minority-report-revised">#</a></h2>
+<p>Things that look different on other stacks:</p>
+<ul>
+<li><strong>No systemd</strong> — Void (runit), Alpine (OpenRC), Gentoo (flexible). Kernel is the same; userspace glue differs.</li>
+<li><strong>No NetworkManager</strong> — servers often use systemd-networkd; embedded uses <code>udhcpc</code> + scripts.</li>
+<li><strong>No D-Bus</strong> on minimal systems — many daemons run without it; desktop integration suffers proportionally.</li>
+<li><strong>No Wayland</strong> — most servers and many embedded systems have no GUI at all, or X11 still, or direct DRM/KMS apps (Kodi, cage, gamescope).</li>
+<li><strong>No compositor at all</strong> — Steam Deck&rsquo;s &ldquo;gaming mode&rdquo; uses gamescope as a minimal compositor; many embedded systems run a single DRM client directly.</li>
+<li><strong>Android</strong> — Linux kernel, completely different userspace. Its own display stack (SurfaceFlinger), init (init.rc), IPC (Binder, not D-Bus), app framework. Almost nothing above layer 1 ports over.</li>
+<li><strong>ChromeOS</strong> — Linux kernel, Chromium as the whole UI layer. Again, very different above the kernel.</li>
+</ul>
+<p>The concepts port; the specific tools don&rsquo;t. But mental models from one stack help understand the others — they&rsquo;re all making similar choices about where to draw the privilege boundary, how to dispatch events, how to keep apps isolated.</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="http://localhost:1313/">Zonglin Li</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

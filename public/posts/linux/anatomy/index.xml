@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>A brief Anatomy of Desktop Linux on Zonglin Li</title>
+    <link>http://localhost:1313/posts/linux/anatomy/</link>
+    <description>Recent content in A brief Anatomy of Desktop Linux on Zonglin Li</description>
+    <generator>Hugo -- 0.160.1</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 19 Apr 2026 20:59:18 -0700</lastBuildDate>
+    <atom:link href="http://localhost:1313/posts/linux/anatomy/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Wayland</title>
+      <link>http://localhost:1313/posts/linux/anatomy/wayland/</link>
+      <pubDate>Sun, 19 Apr 2026 20:59:18 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/wayland/</guid>
+      <description>&lt;h2 id=&#34;what-wayland-is-and-why-it-exists&#34;&gt;What Wayland is and why it exists&lt;/h2&gt;
+&lt;p&gt;For thirty years, Linux GUIs ran on X11 — specifically, on the X.Org server, a giant process that owned the display hardware, received rendering commands from clients over a socket, and drew pixels. Apps were thin clients; the server did everything.&lt;/p&gt;
+&lt;p&gt;This made sense in 1984. Your &amp;ldquo;client&amp;rdquo; might be a remote mainframe; the &amp;ldquo;server&amp;rdquo; was the graphics terminal in front of you. Network-transparent, thin clients, shared display resources — all virtues for the era.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Udev</title>
+      <link>http://localhost:1313/posts/linux/anatomy/udev/</link>
+      <pubDate>Sun, 19 Apr 2026 20:59:03 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/udev/</guid>
+      <description>&lt;h2 id=&#34;what-udev-is-and-why-it-exists&#34;&gt;What udev is and why it exists&lt;/h2&gt;
+&lt;p&gt;Before udev, Linux had two bad options for device files under &lt;code&gt;/dev&lt;/code&gt;: ship a giant static directory containing every conceivable device node (&lt;code&gt;MAKEDEV&lt;/code&gt;-style, thousands of entries, most unused), or use &lt;code&gt;devfs&lt;/code&gt; — an in-kernel filesystem that auto-created nodes but imposed its own naming scheme and was impossible to customize flexibly from userspace.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;udev&lt;/strong&gt; replaced both. The deal: the kernel knows when devices appear and disappear, but all &lt;em&gt;policy&lt;/em&gt; about those devices — their names, permissions, symlinks, which daemons get notified — lives in userspace, driven by rules you can read and modify. &lt;code&gt;/dev&lt;/code&gt; becomes a &lt;code&gt;devtmpfs&lt;/code&gt; or &lt;code&gt;tmpfs&lt;/code&gt; populated dynamically as devices come and go.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Systemd</title>
+      <link>http://localhost:1313/posts/linux/anatomy/systemd/</link>
+      <pubDate>Sun, 19 Apr 2026 20:58:50 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/systemd/</guid>
+      <description>&lt;h2 id=&#34;what-systemd-is-and-why-it-exists&#34;&gt;What systemd is and why it exists&lt;/h2&gt;
+&lt;p&gt;Before systemd, Linux boot was a parade of shell scripts. SysV init ran &lt;code&gt;/etc/init.d/*&lt;/code&gt; scripts sequentially based on runlevels; Upstart (Ubuntu&amp;rsquo;s attempt) added event-based triggers. The problems piled up:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Slow.&lt;/strong&gt; Sequential script execution; no parallelism beyond crude tricks.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Unreliable.&lt;/strong&gt; Every daemon invented its own forking/PID-file dance; the init system had no reliable way to know if a service was actually running.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Fragmented.&lt;/strong&gt; Daemon supervision, socket activation, device events, cron, logging, login sessions — each was a separate project with its own config format.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Opaque.&lt;/strong&gt; A service failing at boot meant reading a pile of shell scripts and guessing at ordering dependencies.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;systemd (started 2010 by Lennart Poettering at Red Hat, now the default on most major distros) took the position that &lt;strong&gt;init shouldn&amp;rsquo;t just start daemons — it should be a platform for managing system state&lt;/strong&gt;. The design bet was that consolidating service management, socket activation, device events, cgroups, logging, and session tracking into one coherent model would be net-simpler than the alternative, even if the individual project got large.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Sysfs</title>
+      <link>http://localhost:1313/posts/linux/anatomy/sysfs/</link>
+      <pubDate>Sun, 19 Apr 2026 20:58:33 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/sysfs/</guid>
+      <description>&lt;h2 id=&#34;what-sysfs-is-and-why-it-exists&#34;&gt;What sysfs is and why it exists&lt;/h2&gt;
+&lt;p&gt;In classical Unix, everything was a file — except the kernel&amp;rsquo;s internal state. By the 2.4-era Linux kernel, that state was leaking into userspace through an inconsistent mess: ioctls on random device files, &lt;code&gt;/proc&lt;/code&gt; entries with ad-hoc text formats, sysctl syscalls, driver-specific character devices. If you wanted to know &amp;ldquo;what PCI devices are on this bus&amp;rdquo; or &amp;ldquo;what&amp;rsquo;s this disk&amp;rsquo;s queue depth&amp;rdquo;, each driver had its own answer.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Syscalls</title>
+      <link>http://localhost:1313/posts/linux/anatomy/syscalls/</link>
+      <pubDate>Sun, 19 Apr 2026 20:58:01 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/syscalls/</guid>
+      <description>&lt;h2 id=&#34;what-a-syscall-is-and-why-it-exists&#34;&gt;What a syscall is and why it exists&lt;/h2&gt;
+&lt;p&gt;The fundamental division in an operating system: &lt;strong&gt;user mode&lt;/strong&gt; can compute, access its own memory, and not much else. &lt;strong&gt;Kernel mode&lt;/strong&gt; can touch hardware, access any memory, configure the CPU, and generally do anything. A userspace program running forever in user mode can add numbers together but can&amp;rsquo;t open a file, allocate memory from the OS, send a packet, or even exit cleanly.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Ioctl</title>
+      <link>http://localhost:1313/posts/linux/anatomy/ioctl/</link>
+      <pubDate>Sun, 19 Apr 2026 20:57:31 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/ioctl/</guid>
+      <description>&lt;h2 id=&#34;what-ioctl-is-and-why-it-exists&#34;&gt;What ioctl is and why it exists&lt;/h2&gt;
+&lt;p&gt;Unix&amp;rsquo;s core abstraction is the file descriptor: &lt;code&gt;open&lt;/code&gt;, &lt;code&gt;read&lt;/code&gt;, &lt;code&gt;write&lt;/code&gt;, &lt;code&gt;close&lt;/code&gt;. Beautifully simple, and wonderfully general when what you&amp;rsquo;re doing is moving bytes around. But devices aren&amp;rsquo;t just byte streams. A serial port has a baud rate. A disk has a geometry. A network interface has an MTU and a MAC address. A tape drive rewinds. A terminal has a window size. None of these fit &lt;code&gt;read()&lt;/code&gt;/&lt;code&gt;write()&lt;/code&gt;.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>DRM/KMS</title>
+      <link>http://localhost:1313/posts/linux/anatomy/drm_kms/</link>
+      <pubDate>Sun, 19 Apr 2026 20:55:51 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/drm_kms/</guid>
+      <description>&lt;h2 id=&#34;what-drmkms-is-and-why-it-exists&#34;&gt;What DRM/KMS is and why it exists&lt;/h2&gt;
+&lt;p&gt;The journey of &amp;ldquo;userspace program wants pixels on the screen&amp;rdquo; on Linux has been a long architectural drama. In the 1990s, X.Org (then XFree86) was a root-running monolith that poked graphics cards directly via port I/O and memory-mapped registers. Every GPU driver was an X module; every mode change (resolution, refresh rate) happened in userspace; crashing the X server usually meant a blank screen until reboot. &amp;ldquo;Kernel involvement in graphics&amp;rdquo; was limited to getting the PCI device mapped and out of the way.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>DBus</title>
+      <link>http://localhost:1313/posts/linux/anatomy/d_bus/</link>
+      <pubDate>Sun, 19 Apr 2026 20:55:22 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/d_bus/</guid>
+      <description>&lt;h2 id=&#34;what-d-bus-is-and-why-it-exists&#34;&gt;What D-Bus is and why it exists&lt;/h2&gt;
+&lt;p&gt;By the early 2000s, Linux desktops had a problem: every component needed to talk to every other component. The screensaver needed to know when you&amp;rsquo;re idle. The volume applet needed to ask PulseAudio for the current level. The network applet needed to talk to whatever managed networking. The media player needed to inhibit screen lock during video playback.&lt;/p&gt;
+&lt;p&gt;What existed: CORBA (heavyweight and hated), ad-hoc Unix sockets (everyone rolled their own protocol), X11 atoms (abused as IPC), DCOP in KDE and Bonobo in GNOME (desktop-specific, incompatible). Every component pair invented or picked their own IPC.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Chapter 1: Overview</title>
+      <link>http://localhost:1313/posts/linux/anatomy/overview/</link>
+      <pubDate>Sun, 19 Apr 2026 20:47:34 -0700</pubDate>
+      <guid>http://localhost:1313/posts/linux/anatomy/overview/</guid>
+      <description>&lt;p&gt;The key insight that ties everything together: &lt;strong&gt;modern Linux is a federation of daemons coordinating via well-defined IPC, sitting on top of a kernel that exposes its state through several named APIs.&lt;/strong&gt; Understanding the seams — where one layer stops and the next begins — is more useful than memorizing any single layer.&lt;/p&gt;
+&lt;h2 id=&#34;layer-0-the-kernels-boundaries&#34;&gt;Layer 0: The kernel&amp;rsquo;s boundaries&lt;/h2&gt;
+&lt;p&gt;The kernel exposes itself to userspace through a handful of interfaces, each with a different philosophy:&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
