@@ -4,9 +4,10 @@
 <header class="page-header">
   {{- partial "breadcrumbs.html" . }}
   <h1>{{ .Title }}</h1>
-  {{- if .Description }}
+  {{- $blurb := .Description | default .Params.summary }}
+  {{- with $blurb }}
   <div class="post-description">
-    {{ .Description | markdownify }}
+    {{ . | markdownify }}
   </div>
   {{- end }}
 </header>
