@@ -4,15 +4,16 @@ draft: true
 title: 'Chapter 0: An Introduction'
 weight: 1
 ---
+![Map of linux](linux_map.png)
 A modern Linux desktop is a working compromise between forty years of Unix tradition, thirty years of X11, twenty years of D-Bus-era coordination, and a decade or so of Wayland's attempt to start fresh. When you press the power button on your laptop and a graphical login screen appears fifteen seconds later, a cast of several dozen independent projects — kernel drivers going back to the 90s, protocols redesigned in 2008, config models introduced in 2011, a display server first sketched in 2012, a session tracker ratified in 2015 — briefly cohere into something that looks, to a user, like one operating system.
 
 This series is a map of that cohering. It's for people who use this system every day and have the vague sense that they don't quite understand how it actually works.
 
 ## Who this is for
 
-You've been using desktop Linux for a while. You're comfortable in a terminal. You can install packages, edit config files, write shell scripts, follow a stack trace, read a man page. You've heard — probably typed, probably debugged — words like `systemd`, `udev`, `D-Bus`, `PAM`, `polkit`, `NetworkManager`, `Wayland`, `cgroups`, `sysfs`. You know they exist.
+You've been using desktop Linux for a while. You're comfortable in a terminal. You can install packages, edit config files, write shell scripts, follow a stack trace, read a man page. You've heard — probably typed, probably debugged — things like `systemd`, `udev`, `D-Bus`, `PAM`, `polkit`, `NetworkManager`, `Wayland`, `cgroups`, `sysfs`. You know they exist.
 
-But if someone asked you to explain how they fit together — what happens between the power button and the desktop, who's talking to whom over what protocol, why your WiFi works before you log in, why `sudo systemctl` prompts you differently than clicking "Restart" in the GNOME menu — you'd probably wave your hands. You know the pieces. You don't have the picture.
+But if someone asked you to explain how they fit together — what actually happens when you plug in a USB drive, why your screenshot tool stopped working when you switched to Wayland, what happens the moment you close your laptop lid, what's going on under the hood when you connect to a new WiFi network — you'd probably wave your hands. You know the pieces. You don't have the picture.
 
 This series is for that gap. It's not an introduction to Linux. It's not a tutorial on any specific tool. It's a systematic walk through the layers of a desktop Linux system, with enough depth at each layer to build a durable mental model — and enough hands-on detail that you can verify everything on your own machine.
 

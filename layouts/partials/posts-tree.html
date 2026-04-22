@@ -6,10 +6,10 @@
 {{- if gt $d 6 }}{{ $d = 6 }}{{ end }}
 {{- $openTag := printf "<h%d><a href=%q>%s</a></h%d>" $d $s.RelPermalink $s.Title $d }}
 
-<section class="post-section" style="margin-top:1.5rem;">
+<section class="post-section">
   {{ $openTag | safeHTML }}
   {{- with $s.Params.summary }}
-  <p class="post-description" style="margin-top:-0.25rem;">{{ . | markdownify }}</p>
+  <div class="post-section-summary">{{ . | markdownify }}</div>
   {{- end }}
   {{- with $s.RegularPages }}
   <ul class="post-tree-list">

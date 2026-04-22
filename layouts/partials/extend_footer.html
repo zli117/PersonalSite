@@ -1,0 +1,13 @@
+{{- /* Click-to-zoom for images in post content.
+       Uses medium-zoom (https://github.com/francoischalifour/medium-zoom) via CDN. */ -}}
+<script defer src="https://cdn.jsdelivr.net/npm/medium-zoom@1/dist/medium-zoom.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof mediumZoom === "undefined") return;
+    mediumZoom(".post-content img", {
+      margin: 24,
+      background: "var(--theme)",
+      scrollOffset: 0,
+    });
+  });
+</script>
