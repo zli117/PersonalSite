@@ -25,18 +25,18 @@ Most explanations of Linux pretend the system is timeless: here is how systemd w
 
 A rough timeline of the pieces you'll meet:
 
-- **1971** — Unix's first edition. The file abstraction, processes, pipes, the syscall interface. The bones of the system you're running on are this old.
-- **1984** — The X Window System is released at MIT. Network-transparent, client-server, designed for an era when clients might be mainframes. It will run Linux desktops essentially unchanged for the next thirty-five years.
-- **1991** — Linus posts the first Linux kernel announcement. Initial focus: POSIX compatibility and running on his 386.
-- **1995** — Sun introduces PAM. Every Unix program that authenticates stops reinventing the auth stack.
-- **2002** — Havoc Pennington starts D-Bus at Red Hat. The goal is to stop desktops from inventing per-project IPC mechanisms (CORBA, DCOP, Bonobo).
-- **2003-2008** — The kernel's `udev` subsystem replaces the old static `/dev` and `devfs`. `sysfs` arrives. Kernel Mode Setting moves display control out of X and into the kernel. Mesa's DRI2 arrives to let clients render directly on GPUs.
-- **2008** — Kristian Høgsberg begins Wayland. The premise: the X server's 1984 assumptions don't fit how modern apps want to render, and the code can't evolve any further without a restart.
-- **2010** — Lennart Poettering starts systemd. PID 1 was a neglected frontier; the proposal is to consolidate init, service management, logging, and session tracking into one coherent model.
-- **2011-2015** — logind, resolved, networkd, timesyncd, homed appear as systemd components. The classic split between "init" and "everything else" dissolves.
-- **2013** — libinput consolidates touchpad/tablet/mouse logic that had lived in a dozen X drivers into a single library that both X and Wayland compositors can use.
-- **2016** — GNOME 3 starts defaulting to Wayland on capable hardware.
-- **2019** — io_uring lands in the kernel. A fresh take on async I/O that reshapes high-performance userspace.
+- **1971** — Unix's first edition.[^unix-v1] The file abstraction, processes, pipes, the syscall interface. The bones of the system you're running on are this old.
+- **1984** — The X Window System is released at MIT.[^x11] Network-transparent, client-server, designed for an era when clients might be mainframes. It will run Linux desktops essentially unchanged for the next thirty-five years.
+- **1991** — Linus posts the first Linux kernel announcement.[^linux-announce] Initial focus: POSIX compatibility and running on his 386.
+- **1995** — Sun introduces PAM.[^pam] Every Unix program that authenticates stops reinventing the auth stack.
+- **2002** — Havoc Pennington (with Alex Larsson and Anders Carlsson) starts D-Bus at Red Hat.[^dbus] The goal is to stop desktops from inventing per-project IPC mechanisms (CORBA, DCOP, Bonobo).
+- **2003-2009** — The kernel's `udev` subsystem replaces the old static `/dev` and `devfs`.[^udev] `sysfs` arrives.[^sysfs] Kernel Mode Setting moves display control out of X and into the kernel.[^kms] Mesa's DRI2 arrives to let clients render directly on GPUs.[^dri2]
+- **2008** — Kristian Høgsberg begins Wayland.[^wayland] The premise: the X server's 1984 assumptions don't fit how modern apps want to render, and the code can't evolve any further without a restart.
+- **2010** — Lennart Poettering (with Kay Sievers) starts systemd.[^systemd] PID 1 was a neglected frontier; the proposal is to consolidate init, service management, logging, and session tracking into one coherent model.
+- **2011-2015** — logind, resolved, networkd, and timesyncd appear as systemd components.[^systemd-components] The classic split between "init" and "everything else" dissolves.
+- **2014** — libinput consolidates touchpad/tablet/mouse logic that had lived in a dozen X drivers into a single library that both X and Wayland compositors can use.[^libinput]
+- **2016** — GNOME 3 starts defaulting to Wayland on capable hardware.[^gnome-wayland]
+- **2019** — io_uring lands in the kernel.[^io-uring] A fresh take on async I/O that reshapes high-performance userspace.
 - **2021-2025** — Wayland crosses the threshold: new toolkits target it first, major distros default to it, the remaining X11 holdouts (NVIDIA, screen recorders, input injection tools) slowly come around.
 
 These dates are not trivia. Every one of them corresponds to a decision the stack is still living with. When your Electron app runs under XWayland instead of natively, that's because Electron was built when X was the default and hasn't caught up yet — a 1984 protocol hosting a 2015 app via a 2012-designed translation layer. When your touchpad's palm rejection Just Works across every desktop environment, that's because libinput exists; when it didn't, it didn't. When `systemctl status` shows you a cgroup tree with every process a service has spawned, that's because systemd's designers decided, around 2011, that PID tracking was inadequate and cgroups were the right substrate.
@@ -157,3 +157,35 @@ Errors are likely in specifics — driver versions, kernel ABIs, distro conventi
 Treat this like a well-structured starting point for building your own mental model — not as a definitive reference. The goal isn't for you to trust these pages; it's for you to read them, run the commands, and come away with enough grounding to read the real specs yourself.
 
 Fifty years of Unix, thirty of X, twenty of D-Bus, fifteen of systemd, ten of Wayland, and counting. Fifteen pieces, bottom to top. Let's begin.
+
+## References
+
+[^unix-v1]: [*Unix*](https://en.wikipedia.org/wiki/Unix), Wikipedia — Unix 1st Edition was released at Bell Labs in November 1971; the 1st Edition Programmer's Manual is dated November 3, 1971.
+
+[^x11]: [*X Window System*](https://en.wikipedia.org/wiki/X_Window_System), Wikipedia — X originated at MIT in 1984 as a collaboration between Jim Gettys (Project Athena) and Bob Scheifler (MIT LCS); X version 1 was announced by Scheifler on June 19, 1984.
+
+[^linux-announce]: [*History of Linux*](https://en.wikipedia.org/wiki/History_of_Linux), Wikipedia — Linus Torvalds publicly announced the Linux kernel project on August 25, 1991.
+
+[^pam]: [*Pluggable authentication module*](https://en.wikipedia.org/wiki/Pluggable_authentication_module), Wikipedia — PAM was designed by Vipin Samar and Charlie Lai of Sun Microsystems and first proposed in OSF RFC 86.0 (October 1995).
+
+[^dbus]: [*D-Bus*](https://en.wikipedia.org/wiki/D-Bus), Wikipedia — D-Bus was started in 2002 by Havoc Pennington (Red Hat), Alex Larsson (Red Hat), and Anders Carlsson as part of the freedesktop.org project.
+
+[^udev]: [*udev*](https://en.wikipedia.org/wiki/Udev), Wikipedia — udev was created by Greg Kroah-Hartman and Kay Sievers to replace devfs; the first release was in November 2003.
+
+[^sysfs]: [*sysfs*](https://en.wikipedia.org/wiki/Sysfs), Wikipedia — Patrick Mochel authored sysfs; it first appeared in Linux 2.6.0 (December 2003).
+
+[^kms]: [*Mode setting*](https://en.wikipedia.org/wiki/Mode_setting), Wikipedia — Intel GEM was merged in Linux 2.6.28 (December 2008); Kernel Mode Setting for Intel landed in 2.6.29 (March 2009), with Radeon in 2.6.31 (September 2009) and Nouveau in 2.6.33 (December 2009).
+
+[^dri2]: [*Direct Rendering Infrastructure*](https://en.wikipedia.org/wiki/Direct_Rendering_Infrastructure), Wikipedia — DRI2 was proposed at the 2007 X Developers' Summit by Kristian Høgsberg; the first public protocol version shipped in April 2009 and was included in X11R7.5 (October 2009).
+
+[^wayland]: [*Wayland (protocol)*](https://en.wikipedia.org/wiki/Wayland_(protocol)), Wikipedia — Høgsberg began Wayland as a personal project in 2008 while working at Red Hat; the initial repository was created on September 30, 2008.
+
+[^systemd]: [*systemd*](https://en.wikipedia.org/wiki/Systemd), Wikipedia — Lennart Poettering and Kay Sievers began systemd in 2010; Poettering's "Rethinking PID 1" blog post is dated April 30, 2010.
+
+[^systemd-components]: [*systemd*](https://en.wikipedia.org/wiki/Systemd), Wikipedia — systemd-logind arrived in systemd v30 (April 2011); systemd-networkd in v210 (April 2014); systemd-timesyncd in v213 (2014); systemd-resolved around v215 (2014). (systemd-homed did not land until v245 in March 2020 and is covered separately.)
+
+[^libinput]: [&ldquo;libinput repository created&rdquo;](https://lists.freedesktop.org/archives/wayland-devel/2014-January/012934.html), wayland-devel mailing list, January 2014 — Jonas Ådahl announced the initial split of the Weston input code into an independent library; Peter Hutterer led subsequent development.
+
+[^gnome-wayland]: [&ldquo;Fedora 25 Officially Released as the First Major OS to Offer Wayland by Default&rdquo;](https://www.linux.com/news/fedora-25-officially-released-first-major-os-offer-wayland-default/), Linux.com, November 2016 — Fedora 25 Workstation shipped GNOME 3.22 with Wayland as the default session on November 22, 2016.
+
+[^io-uring]: [*io_uring*](https://en.wikipedia.org/wiki/Io_uring), Wikipedia — io_uring was developed by Jens Axboe and merged into Linux 5.1, released May 5, 2019.
